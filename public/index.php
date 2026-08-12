@@ -741,8 +741,12 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <?php if ($recipe['category_name'] !== null): ?><p>Kategori: <?= $escape($recipe['category_name']) ?></p><?php endif; ?>
             <?php if ($recipe['description'] !== null): ?><p><?= nl2br($escape($recipe['description'])) ?></p><?php endif; ?>
             <?php if ($recipe['source_url'] !== null): ?><p>Källa: <a href="<?= $escape($recipe['source_url']) ?>" target="_blank" rel="noopener noreferrer">Visa originalreceptet</a></p><?php endif; ?>
-            <p>Portioner: <?= $escape($recipe['servings']) ?><?php if ($recipe['cook_time'] !== null): ?> · Tillagningstid: <?= $escape($recipe['cook_time']) ?> minuter<?php endif; ?></p>
-            <h3>Ingredienser</h3><ul><?php foreach ($recipe['ingredients'] as $ingredient): ?><li><?= $escape($ingredient['amount']) ?> <?= $escape($ingredient['unit']) ?> <?= $escape($ingredient['ingredient_name']) ?></li><?php endforeach; ?></ul>
+            <p>Portioner: <span id="recipe-servings"><?= $escape($recipe['servings']) ?></span><?php if ($recipe['cook_time'] !== null): ?> · Tillagningstid: <?= $escape($recipe['cook_time']) ?> minuter<?php endif; ?></p>
+            <?php if ((int) $recipe['servings'] > 0): ?>
+                <p><label>Räkna om till antal portioner<br><input id="portion-calculator" type="number" min="1" max="999" value="<?= $escape($recipe['servings']) ?>" data-base-servings="<?= $escape($recipe['servings']) ?>"></label></p>
+            <?php endif; ?>
+            <h3>Ingredienser</h3>
+            <ul id="recipe-ingredients"><?php foreach ($recipe['ingredients'] as $ingredient): ?><li data-base-amount="<?= $escape($ingredient['amount']) ?>"><span data-portion-amount><?= $escape($ingredient['amount']) ?></span> <?= $escape($ingredient['unit']) ?> <?= $escape($ingredient['ingredient_name']) ?></li><?php endforeach; ?></ul>
             <h3>Tillagning</h3><p><?= nl2br($escape($recipe['instructions'])) ?></p>
             <section class="personal-note">
                 <h3>Mina anteckningar</h3>
@@ -770,6 +774,9 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
 </main>
 <?php if ($page === 'recipe-create' || $page === 'recipe-edit'): ?>
 <script src="<?= $escape($basePath . '/js/ingredients.js') ?>" defer></script>
+<?php endif; ?>
+<?php if ($page === 'recipe-show' && (int) $recipe['servings'] > 0): ?>
+<script src="<?= $escape($basePath . '/js/portion-calculator.js') ?>" defer></script>
 <?php endif; ?>
 </body>
 </html>
