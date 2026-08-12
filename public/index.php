@@ -10,6 +10,7 @@ use App\Repositories\RecipeNoteRepository;
 use App\Repositories\UserRepository;
 use App\Security\Csrf;
 use App\Services\RecipeImageUploader;
+use App\Services\RecipeImporter;
 
 $config = require __DIR__ . '/../bootstrap/app.php';
 
@@ -33,6 +34,7 @@ try {
     $notes = new RecipeNoteRepository($database);
     $users = new UserRepository($database);
     $images = new RecipeImageUploader();
+    $importer = new RecipeImporter();
 } catch (Throwable $exception) {
     error_log('Recipe bank startup failed: ' . $exception->getMessage());
     http_response_code(503);
@@ -43,7 +45,7 @@ try {
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $page = isset($_GET['page']) ? (string) $_GET['page'] : 'dashboard';
 $error = null;
-$formData = ['title' => '', 'description' => '', 'category_id' => 0, 'servings' => 4, 'cook_time' => '', 'instructions' => ''];
+$formData = ['title' => '', 'description' => '', 'category_id' => 0, 'servings' => 4, 'cook_time' => '', 'instructions' => '', 'source_url' => ''];
 $formIngredients = array_fill(0, 3, ['amount' => '', 'unit_id' => 0, 'name' => '']);
 
 if ($method === 'POST' && $page === 'login') {
@@ -182,6 +184,16 @@ if (!$isAdmin && in_array($page, $adminPages, true)) {
     $page = 'dashboard';
 }
 
+if ($method === 'POST' && $page === 'recipe-import') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) { http_response_code(419); $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.'; }
+    else {
+        try {
+            $_SESSION['recipe_import'] = $importer->import((string) ($_POST['url'] ?? ''));
+            header('Location: ' . $url('recipe-create', ['import' => 1])); exit;
+        } catch (RuntimeException $exception) { $error = $exception->getMessage(); }
+    }
+}
+
 if ($method === 'POST' && $page === 'password-change') {
     if (!Csrf::isValid($_POST['_token'] ?? null)) {
         http_response_code(419);
@@ -283,6 +295,7 @@ $readRecipeForm = static function () use (&$formData, &$formIngredients, &$error
         'servings' => (int) ($_POST['servings'] ?? 0),
         'cook_time' => (int) ($_POST['cook_time'] ?? 0),
         'instructions' => trim((string) ($_POST['instructions'] ?? '')),
+        'source_url' => trim((string) ($_POST['source_url'] ?? '')),
     ];
     $rawNames = isset($_POST['ingredient_name']) && is_array($_POST['ingredient_name']) ? $_POST['ingredient_name'] : [];
     $rawAmounts = isset($_POST['amount']) && is_array($_POST['amount']) ? $_POST['amount'] : [];
@@ -313,6 +326,14 @@ $readRecipeForm = static function () use (&$formData, &$formIngredients, &$error
             return [];
         }
         $ingredients[] = ['name' => $name, 'amount' => $amount === '' ? null : $amount, 'unit_id' => $unitId ?: null];
+    }
+
+    if ($formData['source_url'] !== '') {
+        $sourceParts = parse_url($formData['source_url']);
+        if (!filter_var($formData['source_url'], FILTER_VALIDATE_URL) || !is_array($sourceParts)
+            || !in_array(strtolower((string) ($sourceParts['scheme'] ?? '')), ['http', 'https'], true) || strlen($formData['source_url']) > 2048) {
+            $error = 'Källadressen måste vara en giltig webbadress.'; return [];
+        }
     }
 
     if ($formData['title'] === '' || strlen($formData['title']) > 255 || $formData['instructions'] === '') {
@@ -398,6 +419,14 @@ if ($method === 'POST' && $page === 'recipe-delete') {
 $flash = isset($_SESSION['flash']) ? (string) $_SESSION['flash'] : null;
 unset($_SESSION['flash']);
 
+if ($page === 'recipe-create' && isset($_GET['import']) && $_GET['import'] === '1' && isset($_SESSION['recipe_import']) && is_array($_SESSION['recipe_import'])) {
+    $importedRecipe = $_SESSION['recipe_import']; unset($_SESSION['recipe_import']);
+    $formData = array_merge($formData, ['title' => (string) ($importedRecipe['title'] ?? ''), 'description' => (string) ($importedRecipe['description'] ?? ''), 'servings' => (int) ($importedRecipe['servings'] ?? 4), 'cook_time' => (string) ($importedRecipe['cook_time'] ?? ''), 'instructions' => (string) ($importedRecipe['instructions'] ?? ''), 'source_url' => (string) ($importedRecipe['source_url'] ?? '')]);
+    $formIngredients = [];
+    foreach (($importedRecipe['ingredients'] ?? []) as $ingredientName) { $formIngredients[] = ['amount' => '', 'unit_id' => 0, 'name' => (string) $ingredientName]; }
+    while (count($formIngredients) < 3) { $formIngredients[] = ['amount' => '', 'unit_id' => 0, 'name' => '']; }
+}
+
 if ($page === 'recipe-show') {
     $recipe = $recipes->find((int) ($_GET['id'] ?? 0));
     if ($recipe === null) {
@@ -425,6 +454,7 @@ if ($page === 'recipe-edit' && !isset($editingId)) {
             'servings' => $existingRecipe['servings'],
             'cook_time' => $existingRecipe['cook_time'] ?: '',
             'instructions' => $existingRecipe['instructions'],
+            'source_url' => $existingRecipe['source_url'] ?: '',
         ];
         $formIngredients = $existingRecipe['ingredients'];
         while (count($formIngredients) < 3) {
@@ -461,7 +491,7 @@ if ($page === 'recipes') {
     $recipeList = $recipes->search($searchQuery, $selectedCategoryId, (int) $user['id'], $favoritesOnly);
 }
 
-$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord', 'register' => 'Registrera konto'];
+$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-import' => 'Importera recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord', 'register' => 'Registrera konto'];
 $title = $titles[$page] ?? 'Sidan hittades inte';
 ?>
 <!doctype html>
@@ -484,6 +514,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <a href="<?= $escape($url('password')) ?>">Byt lösenord</a>
             <?php if ($isAdmin): ?><a href="<?= $escape($url('users')) ?>">Användare</a><?php endif; ?>
             <a href="<?= $escape($url('recipe-create')) ?>">Nytt recept</a>
+            <a href="<?= $escape($url('recipe-import')) ?>">Importera recept</a>
         </nav>
     <?php endif; ?>
     <?php if ($flash !== null): ?><p><?= $escape($flash) ?></p><?php endif; ?>
@@ -639,6 +670,16 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+    <?php elseif ($page === 'recipe-import'): ?>
+        <h2>Importera recept från webben</h2>
+        <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
+        <p>Klistra in en receptlänk. Du får granska och ändra allt innan du sparar.</p>
+        <p>Receptbilder hämtas inte automatiskt.</p>
+        <form method="post" action="<?= $escape($url('recipe-import')) ?>">
+            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+            <p><label>Receptets webbadress<br><input name="url" type="url" maxlength="2048" placeholder="https://exempel.se/recept" required value="<?= $escape($_POST['url'] ?? '') ?>"></label></p>
+            <p><button type="submit">Hämta receptet</button></p>
+        </form>
     <?php elseif ($page === 'recipe-create' || $page === 'recipe-edit'): ?>
         <h2><?= $page === 'recipe-edit' ? 'Redigera recept' : 'Nytt recept' ?></h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
@@ -653,6 +694,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <p><label>Portioner<br><input name="servings" type="number" min="1" required value="<?= $escape($formData['servings']) ?>"></label></p>
             <p><label>Tillagningstid i minuter<br><input name="cook_time" type="number" min="0" value="<?= $escape($formData['cook_time']) ?>"></label></p>
             <p><label>Receptbild (JPG, PNG eller WebP, högst 5 MB)<br><input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label></p>
+            <p><label>Källa (webbadress, frivilligt)<br><input name="source_url" type="url" maxlength="2048" value="<?= $escape($formData['source_url']) ?>"></label></p>
             <h3>Ingredienser</h3>
             <div id="ingredient-list" class="ingredient-list">
                 <?php foreach ($formIngredients as $ingredient): ?>
@@ -698,6 +740,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <?php if ($recipe['image_path'] !== null): ?><p><img src="<?= $escape($basePath . '/'. $recipe['image_path']) ?>" alt="<?= $escape($recipe['title']) ?>" style="max-width: 500px; height: auto;"></p><?php endif; ?>
             <?php if ($recipe['category_name'] !== null): ?><p>Kategori: <?= $escape($recipe['category_name']) ?></p><?php endif; ?>
             <?php if ($recipe['description'] !== null): ?><p><?= nl2br($escape($recipe['description'])) ?></p><?php endif; ?>
+            <?php if ($recipe['source_url'] !== null): ?><p>Källa: <a href="<?= $escape($recipe['source_url']) ?>" target="_blank" rel="noopener noreferrer">Visa originalreceptet</a></p><?php endif; ?>
             <p>Portioner: <?= $escape($recipe['servings']) ?><?php if ($recipe['cook_time'] !== null): ?> · Tillagningstid: <?= $escape($recipe['cook_time']) ?> minuter<?php endif; ?></p>
             <h3>Ingredienser</h3><ul><?php foreach ($recipe['ingredients'] as $ingredient): ?><li><?= $escape($ingredient['amount']) ?> <?= $escape($ingredient['unit']) ?> <?= $escape($ingredient['ingredient_name']) ?></li><?php endforeach; ?></ul>
             <h3>Tillagning</h3><p><?= nl2br($escape($recipe['instructions'])) ?></p>

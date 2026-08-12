@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS recipes (
     cook_time SMALLINT UNSIGNED NULL,
     instructions TEXT NOT NULL,
     image_path VARCHAR(255) NULL,
+    source_url VARCHAR(2048) NULL,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     KEY recipes_category_id_index (category_id),
