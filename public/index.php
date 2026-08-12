@@ -360,11 +360,24 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <p><button type="submit">Sök</button> <a href="<?= $escape($url('recipes')) ?>">Rensa</a></p>
         </form>
         <?php if ($recipeList === []): ?><p>Inga recept matchar sökningen.</p><?php else: ?>
-            <ul><?php foreach ($recipeList as $listItem): ?><li>
-                <a href="<?= $escape($url('recipe-show', ['id' => $listItem['id']])) ?>"><?= $escape($listItem['title']) ?></a>
-                <?php if ($listItem['category_name'] !== null): ?> (<?= $escape($listItem['category_name']) ?>)<?php endif; ?>
-                — <a href="<?= $escape($url('recipe-edit', ['id' => $listItem['id']])) ?>">Redigera</a>
-            </li><?php endforeach; ?></ul>
+            <div class="recipe-list">
+                <?php foreach ($recipeList as $listItem): ?>
+                    <article class="recipe-card">
+                        <?php if ($listItem['image_path'] !== null): ?>
+                            <a class="recipe-card-image" href="<?= $escape($url('recipe-show', ['id' => $listItem['id']])) ?>">
+                                <img src="<?= $escape($basePath . '/' . $listItem['image_path']) ?>" alt="<?= $escape($listItem['title']) ?>">
+                            </a>
+                        <?php else: ?>
+                            <div class="recipe-card-image recipe-card-placeholder" aria-hidden="true">Ingen bild</div>
+                        <?php endif; ?>
+                        <div class="recipe-card-content">
+                            <h3><a href="<?= $escape($url('recipe-show', ['id' => $listItem['id']])) ?>"><?= $escape($listItem['title']) ?></a></h3>
+                            <?php if ($listItem['category_name'] !== null): ?><p><?= $escape($listItem['category_name']) ?></p><?php endif; ?>
+                            <p><a href="<?= $escape($url('recipe-edit', ['id' => $listItem['id']])) ?>">Redigera receptet</a></p>
+                        </div>
+                    </article>
+                <?php endforeach; ?>
+            </div>
         <?php endif; ?>
     <?php elseif ($page === 'recipe-create' || $page === 'recipe-edit'): ?>
         <h2><?= $page === 'recipe-edit' ? 'Redigera recept' : 'Nytt recept' ?></h2>
