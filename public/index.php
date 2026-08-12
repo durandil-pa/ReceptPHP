@@ -6,6 +6,7 @@ use App\Database\Database;
 use App\Repositories\RecipeRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\FavoriteRepository;
+use App\Repositories\RecipeNoteRepository;
 use App\Security\Csrf;
 use App\Services\RecipeImageUploader;
 
@@ -28,6 +29,7 @@ try {
     $recipes = new RecipeRepository($database);
     $categoryRepository = new CategoryRepository($database);
     $favorites = new FavoriteRepository($database);
+    $notes = new RecipeNoteRepository($database);
     $images = new RecipeImageUploader();
 } catch (Throwable $exception) {
     error_log('Recipe bank startup failed: ' . $exception->getMessage());
@@ -107,6 +109,30 @@ if ($method === 'POST' && $page === 'favorite-toggle') {
     } else {
         header('Location: ' . $url('recipes'));
     }
+    exit;
+}
+
+if ($method === 'POST' && $page === 'recipe-note-save') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        echo 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        exit;
+    }
+
+    $recipeId = (int) ($_POST['recipe_id'] ?? 0);
+    $note = trim((string) ($_POST['note'] ?? ''));
+    if (strlen($note) > 5000) {
+        $_SESSION['flash'] = 'Anteckningen får vara högst 5 000 tecken.';
+    } else {
+        try {
+            $notes->save((int) $auth->user()['id'], $recipeId, $note);
+            $_SESSION['flash'] = $note === '' ? 'Anteckningen har tagits bort.' : 'Din anteckning har sparats.';
+        } catch (RuntimeException $exception) {
+            $_SESSION['flash'] = 'Receptet kunde inte hittas.';
+        }
+    }
+
+    header('Location: ' . $url('recipe-show', ['id' => $recipeId]));
     exit;
 }
 
@@ -261,6 +287,7 @@ if ($page === 'recipe-show') {
         $error = 'Receptet kunde inte hittas.';
     } else {
         $recipe['is_favorite'] = $favorites->exists((int) $user['id'], (int) $recipe['id']);
+        $recipe['personal_note'] = $notes->find((int) $user['id'], (int) $recipe['id']) ?? '';
     }
 }
 
@@ -481,6 +508,15 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <p>Portioner: <?= $escape($recipe['servings']) ?><?php if ($recipe['cook_time'] !== null): ?> · Tillagningstid: <?= $escape($recipe['cook_time']) ?> minuter<?php endif; ?></p>
             <h3>Ingredienser</h3><ul><?php foreach ($recipe['ingredients'] as $ingredient): ?><li><?= $escape($ingredient['amount']) ?> <?= $escape($ingredient['unit']) ?> <?= $escape($ingredient['ingredient_name']) ?></li><?php endforeach; ?></ul>
             <h3>Tillagning</h3><p><?= nl2br($escape($recipe['instructions'])) ?></p>
+            <section class="personal-note">
+                <h3>Mina anteckningar</h3>
+                <form method="post" action="<?= $escape($url('recipe-note-save')) ?>" class="note-form">
+                    <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+                    <input type="hidden" name="recipe_id" value="<?= $escape($recipe['id']) ?>">
+                    <p><label>Endast synlig för dig<br><textarea name="note" rows="5" maxlength="5000" placeholder="Till exempel: blev bäst med lite mer vitlök."><?= $escape($recipe['personal_note']) ?></textarea></label></p>
+                    <p><button type="submit">Spara anteckning</button></p>
+                </form>
+            </section>
             <form method="post" action="<?= $escape($url('recipe-delete')) ?>" onsubmit="return confirm('Är du säker på att du vill ta bort receptet?');">
                 <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
                 <input type="hidden" name="id" value="<?= $escape($recipe['id']) ?>">
