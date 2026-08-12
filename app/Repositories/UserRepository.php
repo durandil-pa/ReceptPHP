@@ -21,7 +21,9 @@ final class UserRepository
     public function all(): array
     {
         return $this->connection->query(
-            'SELECT id, name, username, role, created_at FROM users ORDER BY name, username'
+            'SELECT id, name, username, role, is_approved, created_at
+             FROM users
+             ORDER BY is_approved ASC, name, username'
         )->fetchAll();
     }
 
@@ -38,8 +40,8 @@ final class UserRepository
         }
 
         $statement = $this->connection->prepare(
-            'INSERT INTO users (name, username, password_hash, role)
-             VALUES (:name, :username, :password_hash, :role)'
+            'INSERT INTO users (name, username, password_hash, role, is_approved)
+             VALUES (:name, :username, :password_hash, :role, 1)'
         );
         $statement->execute([
             'name' => $name,
@@ -49,6 +51,42 @@ final class UserRepository
         ]);
     }
 
+
+
+    public function register(string $name, string $username, string $password): void
+    {
+        $name = trim($name);
+        $username = trim($username);
+        $this->assertAccountInput($name, $username, $password, 'user');
+
+        $exists = $this->connection->prepare('SELECT 1 FROM users WHERE username = :username LIMIT 1');
+        $exists->execute(['username' => $username]);
+        if ($exists->fetchColumn() !== false) {
+            throw new RuntimeException('Användarnamnet används redan.');
+        }
+
+        $statement = $this->connection->prepare(
+            'INSERT INTO users (name, username, password_hash, role, is_approved)
+             VALUES (:name, :username, :password_hash, :role, 0)'
+        );
+        $statement->execute([
+            'name' => $name,
+            'username' => $username,
+            'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+            'role' => 'user',
+        ]);
+    }
+
+    public function approve(int $userId): void
+    {
+        $statement = $this->connection->prepare(
+            'UPDATE users SET is_approved = 1 WHERE id = :id AND is_approved = 0'
+        );
+        $statement->execute(['id' => $userId]);
+        if ($statement->rowCount() !== 1) {
+            throw new RuntimeException('Användaren kunde inte hittas eller är redan godkänd.');
+        }
+    }
 
     public function changeOwnPassword(int $userId, string $currentPassword, string $newPassword): void
     {

@@ -21,7 +21,7 @@ final class Authenticator
         $statement = $this->connection->prepare(
             'SELECT id, name, username, password_hash, role
              FROM users
-             WHERE username = :username
+             WHERE username = :username AND is_approved = 1
              LIMIT 1'
         );
         $statement->execute(['username' => $username]);
