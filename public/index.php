@@ -162,6 +162,31 @@ if (!$isAdmin && in_array($page, $adminPages, true)) {
     $page = 'dashboard';
 }
 
+if ($method === 'POST' && $page === 'password-change') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        $page = 'password';
+    } elseif ((string) ($_POST['new_password'] ?? '') !== (string) ($_POST['new_password_confirmation'] ?? '')) {
+        $error = 'Det nya lösenordet och bekräftelsen matchar inte.';
+        $page = 'password';
+    } else {
+        try {
+            $users->changeOwnPassword(
+                (int) $user['id'],
+                (string) ($_POST['current_password'] ?? ''),
+                (string) ($_POST['new_password'] ?? '')
+            );
+            $_SESSION['flash'] = 'Ditt lösenord har uppdaterats.';
+            header('Location: ' . $url('dashboard'));
+            exit;
+        } catch (RuntimeException $exception) {
+            $error = $exception->getMessage();
+            $page = 'password';
+        }
+    }
+}
+
 if ($isAdmin && $method === 'POST' && $page === 'user-create') {
     if (!Csrf::isValid($_POST['_token'] ?? null)) {
         http_response_code(419);
@@ -398,7 +423,7 @@ if ($page === 'recipes') {
     $recipeList = $recipes->search($searchQuery, $selectedCategoryId, (int) $user['id'], $favoritesOnly);
 }
 
-$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare'];
+$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord'];
 $title = $titles[$page] ?? 'Sidan hittades inte';
 ?>
 <!doctype html>
@@ -418,6 +443,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <a href="<?= $escape($url('recipes')) ?>">Recept</a>
             <a href="<?= $escape($url('recipes', ['favorites' => 1])) ?>">Favoriter</a>
             <a href="<?= $escape($url('categories')) ?>">Kategorier</a>
+            <a href="<?= $escape($url('password')) ?>">Byt lösenord</a>
             <?php if ($isAdmin): ?><a href="<?= $escape($url('users')) ?>">Användare</a><?php endif; ?>
             <a href="<?= $escape($url('recipe-create')) ?>">Nytt recept</a>
         </nav>
@@ -437,6 +463,16 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <h2>Startsida</h2>
         <p>Välkommen, <?= $escape($user['name']) ?>.</p>
         <p><a href="<?= $escape($url('recipes')) ?>">Visa alla recept</a></p>
+    <?php elseif ($page === 'password'): ?>
+        <h2>Byt lösenord</h2>
+        <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
+        <form method="post" action="<?= $escape($url('password-change')) ?>">
+            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+            <p><label>Nuvarande lösenord<br><input name="current_password" type="password" autocomplete="current-password" required></label></p>
+            <p><label>Nytt lösenord (minst 12 tecken)<br><input name="new_password" type="password" minlength="12" autocomplete="new-password" required></label></p>
+            <p><label>Bekräfta nytt lösenord<br><input name="new_password_confirmation" type="password" minlength="12" autocomplete="new-password" required></label></p>
+            <p><button type="submit">Byt lösenord</button></p>
+        </form>
     <?php elseif ($page === 'categories'): ?>
         <h2>Kategorier</h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
