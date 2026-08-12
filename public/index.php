@@ -464,6 +464,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <article>
             <h2><?= $escape($recipe['title']) ?></h2>
             <div class="recipe-detail-actions">
+                <button type="button" class="print-button" onclick="window.print()">Skriv ut recept</button>
                 <form method="post" action="<?= $escape($url('favorite-toggle')) ?>" class="favorite-form">
                     <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
                     <input type="hidden" name="recipe_id" value="<?= $escape($recipe['id']) ?>">
