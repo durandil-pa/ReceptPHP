@@ -134,3 +134,19 @@ main > p {
     form { padding: 16px; }
     input, select, textarea { width: 100%; }
 }
+
+li form {
+    display: inline;
+    margin: 0 0 0 8px;
+    padding: 0;
+    background: transparent;
+    border: 0;
+}
+
+li form button {
+    margin: 0;
+    padding: 4px 8px;
+    font-size: .85rem;
+    background: var(--danger);
+    border-color: var(--danger);
+}

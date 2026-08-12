@@ -24,6 +24,7 @@ try {
     $database = Database::fromConfig($config);
     $auth = new Authenticator($database);
     $recipes = new RecipeRepository($database);
+    $categoryRepository = new CategoryRepository($database);
     $images = new RecipeImageUploader();
 } catch (Throwable $exception) {
     error_log('Recipe bank startup failed: ' . $exception->getMessage());
@@ -63,6 +64,38 @@ if ($method === 'POST' && $page === 'logout') {
 
 if (!$auth->check()) {
     $page = 'login';
+}
+
+if ($method === 'POST' && $page === 'category-create') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        $page = 'categories';
+    } else {
+        try {
+            $categoryRepository->create((string) ($_POST['name'] ?? ''));
+            $_SESSION['flash'] = 'Kategorin har lagts till.';
+            header('Location: ' . $url('categories'));
+            exit;
+        } catch (Throwable $exception) {
+            $error = $exception instanceof RuntimeException ? $exception->getMessage() : 'Kategorin kunde inte sparas.';
+            $page = 'categories';
+        }
+    }
+}
+
+if ($method === 'POST' && $page === 'category-delete') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        echo 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        exit;
+    }
+
+    $_SESSION['flash'] = $categoryRepository->delete((int) ($_POST['id'] ?? 0))
+        ? 'Kategorin har tagits bort. Recepten behåller ingen kategori.'
+        : 'Kategorin kunde inte hittas.';
+    header('Location: ' . $url('categories'));
+    exit;
 }
 
 $user = $auth->user();
@@ -225,6 +258,10 @@ if ($page === 'recipe-edit' && !isset($editingId)) {
     }
 }
 
+if ($page === 'categories') {
+    $managedCategories = $categoryRepository->all();
+}
+
 if ($page === 'recipes') {
     $searchQuery = trim((string) ($_GET['q'] ?? ''));
     $selectedCategoryId = (int) ($_GET['category'] ?? 0);
@@ -240,7 +277,7 @@ if ($page === 'recipes') {
     $recipeList = $recipes->search($searchQuery, $selectedCategoryId);
 }
 
-$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept'];
+$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier'];
 $title = $titles[$page] ?? 'Sidan hittades inte';
 ?>
 <!doctype html>
@@ -258,6 +295,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <nav>
             <a href="<?= $escape($homeUrl) ?>">Startsida</a>
             <a href="<?= $escape($url('recipes')) ?>">Recept</a>
+            <a href="<?= $escape($url('categories')) ?>">Kategorier</a>
             <a href="<?= $escape($url('recipe-create')) ?>">Nytt recept</a>
         </nav>
     <?php endif; ?>
@@ -276,6 +314,30 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <h2>Startsida</h2>
         <p>Välkommen, <?= $escape($user['name']) ?>.</p>
         <p><a href="<?= $escape($url('recipes')) ?>">Visa alla recept</a></p>
+    <?php elseif ($page === 'categories'): ?>
+        <h2>Kategorier</h2>
+        <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
+        <form method="post" action="<?= $escape($url('category-create')) ?>">
+            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+            <p><label>Ny kategori<br><input name="name" maxlength="100" required></label></p>
+            <p><button type="submit">Lägg till kategori</button></p>
+        </form>
+        <?php if ($managedCategories === []): ?>
+            <p>Det finns inga kategorier ännu.</p>
+        <?php else: ?>
+            <ul>
+                <?php foreach ($managedCategories as $category): ?>
+                    <li>
+                        <?= $escape($category['name']) ?> (<?= $escape($category['recipe_count']) ?> recept)
+                        <form method="post" action="<?= $escape($url('category-delete')) ?>" style="display: inline;" onsubmit="return confirm('Ta bort kategorin? Recepten blir då okategoriserade.');">
+                            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+                            <input type="hidden" name="id" value="<?= $escape($category['id']) ?>">
+                            <button type="submit">Ta bort</button>
+                        </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
     <?php elseif ($page === 'recipes'): ?>
         <h2>Recept</h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
