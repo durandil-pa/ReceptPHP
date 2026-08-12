@@ -370,3 +370,34 @@ article form .favorite-button.is-favorite:focus {
         break-inside: avoid;
     }
 }
+
+
+.personal-note {
+    margin-top: 28px;
+    padding-top: 4px;
+    border-top: 1px solid var(--line);
+}
+
+.note-form {
+    margin: 12px 0 0;
+}
+
+.note-form button,
+article form .note-form button {
+    background: var(--forest);
+    border-color: var(--forest);
+}
+
+.note-form button:hover,
+.note-form button:focus,
+article form .note-form button:hover,
+article form .note-form button:focus {
+    background: var(--forest-dark);
+    border-color: var(--forest-dark);
+}
+
+@media print {
+    .personal-note {
+        display: none !important;
+    }
+}
