@@ -4,6 +4,7 @@ declare(strict_types=1);
 use App\Auth\Authenticator;
 use App\Database\Database;
 use App\Repositories\RecipeRepository;
+use App\Repositories\CategoryRepository;
 use App\Security\Csrf;
 use App\Services\RecipeImageUploader;
 
