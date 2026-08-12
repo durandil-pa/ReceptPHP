@@ -19,14 +19,29 @@ final class RecipeRepository
     /**
      * @return array<int, array<string, mixed>>
      */
-    public function all(): array
+    public function search(string $query = '', int $categoryId = 0): array
     {
-        return $this->connection->query(
-            'SELECT recipes.id, recipes.title, recipes.created_at, categories.name AS category_name
-             FROM recipes
-             LEFT JOIN categories ON categories.id = recipes.category_id
-             ORDER BY recipes.created_at DESC, recipes.id DESC'
-        )->fetchAll();
+        $sql = 'SELECT recipes.id, recipes.title, recipes.created_at, categories.name AS category_name
+                FROM recipes
+                LEFT JOIN categories ON categories.id = recipes.category_id
+                WHERE 1 = 1';
+        $parameters = [];
+
+        if ($query !== '') {
+            $sql .= ' AND (recipes.title LIKE :query OR recipes.description LIKE :query)';
+            $parameters['query'] = '%' . $query . '%';
+        }
+
+        if ($categoryId > 0) {
+            $sql .= ' AND recipes.category_id = :category_id';
+            $parameters['category_id'] = $categoryId;
+        }
+
+        $sql .= ' ORDER BY recipes.created_at DESC, recipes.id DESC';
+        $statement = $this->connection->prepare($sql);
+        $statement->execute($parameters);
+
+        return $statement->fetchAll();
     }
 
     /** @return array<int, array<string, mixed>> */

@@ -210,7 +210,18 @@ if ($page === 'recipe-edit' && !isset($editingId)) {
 }
 
 if ($page === 'recipes') {
-    $recipeList = $recipes->all();
+    $searchQuery = trim((string) ($_GET['q'] ?? ''));
+    $selectedCategoryId = (int) ($_GET['category'] ?? 0);
+
+    if ($selectedCategoryId !== 0 && !in_array($selectedCategoryId, $categoryIds, true)) {
+        $selectedCategoryId = 0;
+    }
+
+    if (strlen($searchQuery) > 100) {
+        $searchQuery = substr($searchQuery, 0, 100);
+    }
+
+    $recipeList = $recipes->search($searchQuery, $selectedCategoryId);
 }
 
 $titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept'];
@@ -252,7 +263,18 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <h2>Recept</h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
         <p><a href="<?= $escape($url('recipe-create')) ?>">Skapa nytt recept</a></p>
-        <?php if ($recipeList === []): ?><p>Det finns inga recept ännu.</p><?php else: ?>
+        <form method="get" action="<?= $escape($homeUrl) ?>">
+            <input type="hidden" name="page" value="recipes">
+            <p><label>Sök recept<br><input name="q" maxlength="100" value="<?= $escape($searchQuery) ?>"></label></p>
+            <p><label>Kategori<br><select name="category">
+                <option value="0">Alla kategorier</option>
+                <?php foreach ($categoryList as $category): ?>
+                    <option value="<?= $escape($category['id']) ?>"<?= (int) $category['id'] === $selectedCategoryId ? ' selected' : '' ?>><?= $escape($category['name']) ?></option>
+                <?php endforeach; ?>
+            </select></label></p>
+            <p><button type="submit">Sök</button> <a href="<?= $escape($url('recipes')) ?>">Rensa</a></p>
+        </form>
+        <?php if ($recipeList === []): ?><p>Inga recept matchar sökningen.</p><?php else: ?>
             <ul><?php foreach ($recipeList as $listItem): ?><li>
                 <a href="<?= $escape($url('recipe-show', ['id' => $listItem['id']])) ?>"><?= $escape($listItem['title']) ?></a>
                 <?php if ($listItem['category_name'] !== null): ?> (<?= $escape($listItem['category_name']) ?>)<?php endif; ?>
