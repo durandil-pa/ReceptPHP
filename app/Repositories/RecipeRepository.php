@@ -28,8 +28,18 @@ final class RecipeRepository
                 WHERE 1 = 1';
         $parameters = ['favorite_user_id' => $userId];
         if ($query !== '') {
-            $sql .= ' AND (recipes.title LIKE :query OR recipes.description LIKE :query)';
-            $parameters['query'] = '%' . $query . '%';
+            $sql .= ' AND (
+                recipes.title LIKE :query_title
+                OR recipes.description LIKE :query_description
+                OR EXISTS (
+                    SELECT 1 FROM recipe_ingredients
+                    WHERE recipe_ingredients.recipe_id = recipes.id
+                    AND recipe_ingredients.ingredient_name LIKE :query_ingredient
+                )
+            )';
+            $parameters['query_title'] = '%' . $query . '%';
+            $parameters['query_description'] = '%' . $query . '%';
+            $parameters['query_ingredient'] = '%' . $query . '%';
         }
         if ($categoryId > 0) {
             $sql .= ' AND recipes.category_id = :category_id';
