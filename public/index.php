@@ -23,6 +23,7 @@ try {
     $database = Database::fromConfig($config);
     $auth = new Authenticator($database);
     $recipes = new RecipeRepository($database);
+    $images = new RecipeImageUploader();
 } catch (Throwable $exception) {
     error_log('Recipe bank startup failed: ' . $exception->getMessage());
     http_response_code(503);
@@ -133,22 +134,34 @@ if ($method === 'POST' && in_array($page, ['recipe-store', 'recipe-update'], tru
             $editingId = $recipeId;
         }
     } else {
+        $uploadedImage = null;
+        $previousRecipe = null;
         try {
+            $uploadedImage = $images->upload(isset($_FILES['image']) && is_array($_FILES['image']) ? $_FILES['image'] : []);
+
             if ($page === 'recipe-store') {
-                $recipeId = $recipes->create($formData, $ingredients, (int) $user['id']);
+                $recipeId = $recipes->create($formData, $ingredients, (int) $user['id'], $uploadedImage);
                 $_SESSION['flash'] = 'Receptet har sparats.';
-            } elseif ($recipes->find($recipeId) === null) {
-                throw new RuntimeException('Recipe not found.');
             } else {
-                $recipes->update($recipeId, $formData, $ingredients);
+                $previousRecipe = $recipes->find($recipeId);
+                if ($previousRecipe === null) {
+                    throw new RuntimeException('Recipe not found.');
+                }
+                $recipes->update($recipeId, $formData, $ingredients, $uploadedImage);
+                if ($uploadedImage !== null) {
+                    $images->delete($previousRecipe['image_path']);
+                }
                 $_SESSION['flash'] = 'Receptet har uppdaterats.';
             }
             header('Location: ' . $url('recipe-show', ['id' => $recipeId]));
             exit;
         } catch (Throwable $exception) {
+            if ($uploadedImage !== null) {
+                $images->delete($uploadedImage);
+            }
             error_log('Recipe save failed: ' . $exception->getMessage());
             $page = $page === 'recipe-update' ? 'recipe-edit' : 'recipe-create';
-            $error = 'Receptet kunde inte sparas. Försök igen.';
+            $error = $exception instanceof RuntimeException ? $exception->getMessage() : 'Receptet kunde inte sparas. Försök igen.';
             $editingId = $recipeId;
         }
     }
@@ -161,7 +174,9 @@ if ($method === 'POST' && $page === 'recipe-delete') {
         echo 'Formuläret har gått ut. Ladda om sidan och försök igen.';
         exit;
     }
-    if ($recipes->delete($recipeId)) {
+    $imagePath = $recipes->delete($recipeId);
+    if ($imagePath !== null) {
+        $images->delete($imagePath);
         $_SESSION['flash'] = 'Receptet har tagits bort.';
     } else {
         $_SESSION['flash'] = 'Receptet kunde inte hittas.';
@@ -284,7 +299,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
     <?php elseif ($page === 'recipe-create' || $page === 'recipe-edit'): ?>
         <h2><?= $page === 'recipe-edit' ? 'Redigera recept' : 'Nytt recept' ?></h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
-        <form method="post" action="<?= $escape($url($page === 'recipe-edit' ? 'recipe-update' : 'recipe-store')) ?>">
+        <form method="post" enctype="multipart/form-data" action="<?= $escape($url($page === 'recipe-edit' ? 'recipe-update' : 'recipe-store')) ?>">
             <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
             <?php if ($page === 'recipe-edit'): ?><input type="hidden" name="id" value="<?= $escape($editingId) ?>"><?php endif; ?>
             <p><label>Receptnamn<br><input name="title" maxlength="255" required value="<?= $escape($formData['title']) ?>"></label></p>
@@ -294,6 +309,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <p><label>Kort beskrivning<br><textarea name="description" rows="3"><?= $escape($formData['description']) ?></textarea></label></p>
             <p><label>Portioner<br><input name="servings" type="number" min="1" required value="<?= $escape($formData['servings']) ?>"></label></p>
             <p><label>Tillagningstid i minuter<br><input name="cook_time" type="number" min="0" value="<?= $escape($formData['cook_time']) ?>"></label></p>
+            <p><label>Receptbild (JPG, PNG eller WebP, högst 5 MB)<br><input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label></p>
             <h3>Ingredienser</h3>
             <?php foreach ($formIngredients as $ingredient): ?><p>
                 <input name="amount[]" inputmode="decimal" placeholder="Mängd" value="<?= $escape($ingredient['amount']) ?>">
@@ -309,6 +325,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <article>
             <h2><?= $escape($recipe['title']) ?></h2>
             <p><a href="<?= $escape($url('recipe-edit', ['id' => $recipe['id']])) ?>">Redigera receptet</a></p>
+            <?php if ($recipe['image_path'] !== null): ?><p><img src="<?= $escape($basePath . '/'. $recipe['image_path']) ?>" alt="<?= $escape($recipe['title']) ?>" style="max-width: 500px; height: auto;"></p><?php endif; ?>
             <?php if ($recipe['category_name'] !== null): ?><p>Kategori: <?= $escape($recipe['category_name']) ?></p><?php endif; ?>
             <?php if ($recipe['description'] !== null): ?><p><?= nl2br($escape($recipe['description'])) ?></p><?php endif; ?>
             <p>Portioner: <?= $escape($recipe['servings']) ?><?php if ($recipe['cook_time'] !== null): ?> · Tillagningstid: <?= $escape($recipe['cook_time']) ?> minuter<?php endif; ?></p>

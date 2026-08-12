@@ -1,1 +1,3 @@
 /config/database.local.php
+/public/uploads/recipes/*
+!/public/uploads/recipes/.gitkeep

@@ -7,7 +7,8 @@ Receptbank byggd i PHP.
 1. Placera projektet på en server med PHP 7.2+ och PDO MySQL.
 2. Besök `install/index.php`.
 3. Ange databasuppgifterna. Installationen skapar databasen, tabellerna och den lokala filen `config/database.local.php`.
-4. Ta bort eller begränsa åtkomsten till katalogen `install/` när installationen är klar.
+4. Se till att servern får skriva till `public/uploads/recipes/` för receptbilder.
+5. Ta bort eller begränsa åtkomsten till katalogen `install/` när installationen är klar.
 
 ## Lokal konfiguration
 
