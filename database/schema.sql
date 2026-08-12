@@ -73,3 +73,26 @@ CREATE TABLE IF NOT EXISTS recipe_ingredients (
     CONSTRAINT recipe_ingredients_unit_id_foreign
         FOREIGN KEY (unit_id) REFERENCES units (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
+
+INSERT INTO categories (name, slug) VALUES
+    ('Frukost', 'frukost'),
+    ('Förrätter', 'forratter'),
+    ('Huvudrätter', 'huvudratter'),
+    ('Efterrätter', 'efterratter'),
+    ('Bakning', 'bakning'),
+    ('Drycker', 'drycker'),
+    ('Vegetariskt', 'vegetariskt'),
+    ('Övrigt', 'ovrigt')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO units (name, short_name) VALUES
+    ('Styck', 'st'),
+    ('Deciliter', 'dl'),
+    ('Matsked', 'msk'),
+    ('Tesked', 'tsk'),
+    ('Gram', 'g'),
+    ('Kilogram', 'kg'),
+    ('Liter', 'l'),
+    ('Milliliter', 'ml'),
+    ('Kryddmått', 'krm')
+ON DUPLICATE KEY UPDATE name = VALUES(name);
