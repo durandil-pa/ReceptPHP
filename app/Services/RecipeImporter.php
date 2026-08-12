@@ -41,7 +41,7 @@ final class RecipeImporter
         foreach ($addresses as $address) if (filter_var($address, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) throw new RuntimeException('Den här webbadressen kan inte användas för import.');
         $body = ''; $curl = curl_init($url);
         curl_setopt_array($curl, [CURLOPT_RETURNTRANSFER => false, CURLOPT_FOLLOWLOCATION => false, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 12, CURLOPT_SSL_VERIFYPEER => true, CURLOPT_SSL_VERIFYHOST => 2, CURLOPT_USERAGENT => 'Peters-Receptbank/0.8', CURLOPT_WRITEFUNCTION => static function ($handle, string $chunk) use (&$body): int { if (strlen($body) + strlen($chunk) > self::MAX_SIZE) return 0; $body .= $chunk; return strlen($chunk); }]);
-        $ok = curl_exec($curl); $status = (int) curl_getinfo($curl, CURLINFO_RESPONSE_CODE); $type = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE); curl_close($curl);
+        $ok = curl_exec($curl); $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE); $type = (string) curl_getinfo($curl, CURLINFO_CONTENT_TYPE); curl_close($curl);
         if ($ok === false || $status < 200 || $status >= 300) throw new RuntimeException('Receptsidan kunde inte hämtas. Prova en annan länk.');
         if ($type !== '' && stripos($type, 'html') === false) throw new RuntimeException('Länken verkar inte gå till en vanlig receptsida.');
         return $body;
