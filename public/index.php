@@ -248,6 +248,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= $escape($title . ' – ' . APP_NAME) ?></title>
+    <link rel="stylesheet" href="<?= $escape($basePath . '/css/app.css') ?>">
 </head>
 <body>
 <main>
