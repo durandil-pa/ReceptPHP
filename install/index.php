@@ -81,7 +81,7 @@ if (is_file($configPath)) {
                     'charset' => 'utf8mb4',
                 ];
 
-                $contents = "<?php\\n\\nreturn " . var_export($localConfig, true) . ";\\n";
+                $contents = "<?php\n\nreturn " . var_export($localConfig, true) . ";\n";
                 if (file_put_contents($configPath, $contents, LOCK_EX) === false) {
                     throw new RuntimeException('Kunde inte skriva den lokala databasinställningen.');
                 }
