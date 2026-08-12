@@ -69,7 +69,27 @@ if ($method === 'POST' && $page === 'logout') {
     exit;
 }
 
-if (!$auth->check()) {
+if ($method === 'POST' && $page === 'register') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+    } elseif ((string) ($_POST['password'] ?? '') !== (string) ($_POST['password_confirmation'] ?? '')) {
+        $error = 'Lösenordet och bekräftelsen matchar inte.';
+    } else {
+        try {
+            $users->register(
+                (string) ($_POST['name'] ?? ''),
+                (string) ($_POST['username'] ?? ''),
+                (string) ($_POST['password'] ?? '')
+            );
+            $registrationSuccess = 'Ditt konto är registrerat och väntar på godkännande av en administratör.';
+        } catch (RuntimeException $exception) {
+            $error = $exception->getMessage();
+        }
+    }
+}
+
+if (!$auth->check() && !in_array($page, ['login', 'register'], true)) {
     $page = 'login';
 }
 
@@ -154,7 +174,7 @@ if ($method === 'POST' && $page === 'category-delete') {
 
 $user = $auth->user();
 $isAdmin = $user !== null && ($user['role'] ?? '') === 'admin';
-$adminPages = ['users', 'user-create', 'user-role-change'];
+$adminPages = ['users', 'user-create', 'user-role-change', 'user-approve'];
 
 if (!$isAdmin && in_array($page, $adminPages, true)) {
     http_response_code(403);
@@ -183,6 +203,24 @@ if ($method === 'POST' && $page === 'password-change') {
         } catch (RuntimeException $exception) {
             $error = $exception->getMessage();
             $page = 'password';
+        }
+    }
+}
+
+if ($isAdmin && $method === 'POST' && $page === 'user-approve') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        $page = 'users';
+    } else {
+        try {
+            $users->approve((int) ($_POST['id'] ?? 0));
+            $_SESSION['flash'] = 'Användaren har godkänts och kan nu logga in.';
+            header('Location: ' . $url('users'));
+            exit;
+        } catch (RuntimeException $exception) {
+            $error = $exception->getMessage();
+            $page = 'users';
         }
     }
 }
@@ -423,7 +461,7 @@ if ($page === 'recipes') {
     $recipeList = $recipes->search($searchQuery, $selectedCategoryId, (int) $user['id'], $favoritesOnly);
 }
 
-$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord'];
+$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord', 'register' => 'Registrera konto'];
 $title = $titles[$page] ?? 'Sidan hittades inte';
 ?>
 <!doctype html>
@@ -459,6 +497,21 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <p><label>Lösenord<br><input name="password" type="password" autocomplete="current-password" required></label></p>
             <p><button type="submit">Logga in</button></p>
         </form>
+        <p><a href="<?= $escape($url('register')) ?>">Saknar du konto? Registrera dig här.</a></p>
+    <?php elseif ($page === 'register'): ?>
+        <h2>Registrera konto</h2>
+        <?php if (isset($registrationSuccess)): ?><p><?= $escape($registrationSuccess) ?></p><?php endif; ?>
+        <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
+        <form method="post" action="<?= $escape($url('register')) ?>">
+            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+            <p><label>Namn<br><input name="name" maxlength="100" required value="<?= $escape($_POST['name'] ?? '') ?>"></label></p>
+            <p><label>Användarnamn<br><input name="username" pattern="[A-Za-z0-9_.-]{3,100}" maxlength="100" required value="<?= $escape($_POST['username'] ?? '') ?>"></label></p>
+            <p><label>Lösenord (minst 12 tecken)<br><input name="password" type="password" minlength="12" autocomplete="new-password" required></label></p>
+            <p><label>Bekräfta lösenord<br><input name="password_confirmation" type="password" minlength="12" autocomplete="new-password" required></label></p>
+            <p><button type="submit">Registrera konto</button></p>
+        </form>
+        <p>Kontot kan användas när en administratör har godkänt registreringen.</p>
+        <p><a href="<?= $escape($url('login')) ?>">Tillbaka till inloggning</a></p>
     <?php elseif ($page === 'dashboard'): ?>
         <h2>Startsida</h2>
         <p>Välkommen, <?= $escape($user['name']) ?>.</p>
@@ -517,7 +570,14 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
                         <strong><?= $escape($managedUser['name']) ?></strong><br>
                         <span><?= $escape($managedUser['username']) ?></span>
                     </div>
-                    <?php if ((int) $managedUser['id'] === (int) $user['id']): ?>
+                    <?php if ((int) $managedUser['is_approved'] === 0): ?>
+                        <form method="post" action="<?= $escape($url('user-approve')) ?>" class="user-role-form">
+                            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+                            <input type="hidden" name="id" value="<?= $escape($managedUser['id']) ?>">
+                            <span class="user-role">Väntar på godkännande</span>
+                            <button type="submit">Godkänn konto</button>
+                        </form>
+                    <?php elseif ((int) $managedUser['id'] === (int) $user['id']): ?>
                         <span class="user-role"><?= $escape($managedUser['role'] === 'admin' ? 'Administratör (du)' : 'Vanlig användare') ?></span>
                     <?php else: ?>
                         <form method="post" action="<?= $escape($url('user-role-change')) ?>" class="user-role-form">
