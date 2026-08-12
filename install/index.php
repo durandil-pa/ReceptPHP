@@ -20,21 +20,26 @@ if (is_file($configPath)) {
         $host = trim((string) ($_POST['host'] ?? ''));
         $port = (int) ($_POST['port'] ?? 3306);
         $database = trim((string) ($_POST['database'] ?? ''));
-        $username = (string) ($_POST['username'] ?? '');
-        $password = (string) ($_POST['password'] ?? '');
+        $databaseUsername = (string) ($_POST['database_username'] ?? '');
+        $databasePassword = (string) ($_POST['database_password'] ?? '');
+        $adminName = trim((string) ($_POST['admin_name'] ?? ''));
+        $adminUsername = trim((string) ($_POST['admin_username'] ?? ''));
+        $adminPassword = (string) ($_POST['admin_password'] ?? '');
 
-        if ($host === '' || $username === '' || !preg_match('/^[A-Za-z0-9_]+$/', $database)) {
-            $error = 'Kontrollera server, databasnamn och användarnamn.';
+        if ($host === '' || $databaseUsername === '' || !preg_match('/^[A-Za-z0-9_]+$/', $database)) {
+            $error = 'Kontrollera databasens server, namn och användarnamn.';
         } elseif ($port < 1 || $port > 65535) {
             $error = 'Databasporten är ogiltig.';
+        } elseif ($adminName === '' || !preg_match('/^[A-Za-z0-9_.-]{3,100}$/', $adminUsername) || strlen($adminPassword) < 12) {
+            $error = 'Administratören behöver namn, ett användarnamn med minst 3 tecken och ett lösenord med minst 12 tecken.';
         } elseif (!is_file($schemaPath)) {
             $error = 'Databasschemat kunde inte hittas.';
         } else {
             try {
                 $pdo = new PDO(
                     sprintf('mysql:host=%s;port=%d;charset=utf8mb4', $host, $port),
-                    $username,
-                    $password,
+                    $databaseUsername,
+                    $databasePassword,
                     [
                         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                         PDO::ATTR_EMULATE_PREPARES => false,
@@ -55,13 +60,24 @@ if (is_file($configPath)) {
                     }
                 }
 
+                $adminStatement = $pdo->prepare(
+                    'INSERT INTO users (name, username, password_hash, role)
+                     VALUES (:name, :username, :password_hash, :role)'
+                );
+                $adminStatement->execute([
+                    'name' => $adminName,
+                    'username' => $adminUsername,
+                    'password_hash' => password_hash($adminPassword, PASSWORD_DEFAULT),
+                    'role' => 'admin',
+                ]);
+
                 $localConfig = [
                     'driver' => 'mysql',
                     'host' => $host,
                     'port' => $port,
                     'database' => $database,
-                    'username' => $username,
-                    'password' => $password,
+                    'username' => $databaseUsername,
+                    'password' => $databasePassword,
                     'charset' => 'utf8mb4',
                 ];
 
@@ -72,10 +88,10 @@ if (is_file($configPath)) {
 
                 @chmod($configPath, 0600);
                 unset($_SESSION['install_token']);
-                $message = 'Databasen och tabellerna skapades. Av säkerhetsskäl är installationen nu låst.';
+                $message = 'Databasen, tabellerna och administratörskontot skapades. Du kan nu logga in.';
             } catch (Throwable $exception) {
                 error_log('Recipe bank installation failed: ' . $exception->getMessage());
-                $error = 'Installationen kunde inte slutföras. Kontrollera databasuppgifterna och serverns fellogg.';
+                $error = 'Installationen kunde inte slutföras. Kontrollera uppgifterna och serverns fellogg.';
             }
         }
     }
@@ -109,12 +125,18 @@ if (!isset($_SESSION['install_token'])) {
             <form method="post">
                 <input type="hidden" name="_token" value="<?= htmlspecialchars($_SESSION['install_token'], ENT_QUOTES, 'UTF-8') ?>">
 
+                <h3>Databas</h3>
                 <p><label>Databasserver<br><input name="host" value="127.0.0.1" required></label></p>
                 <p><label>Port<br><input name="port" type="number" min="1" max="65535" value="3306" required></label></p>
                 <p><label>Databasnamn<br><input name="database" value="peters_receptbank" required></label></p>
-                <p><label>Användarnamn<br><input name="username" required></label></p>
-                <p><label>Lösenord<br><input name="password" type="password"></label></p>
-                <p><button type="submit">Skapa databas och tabeller</button></p>
+                <p><label>Databasanvändarnamn<br><input name="database_username" required></label></p>
+                <p><label>Databaslösenord<br><input name="database_password" type="password"></label></p>
+
+                <h3>Första administratören</h3>
+                <p><label>Namn<br><input name="admin_name" required></label></p>
+                <p><label>Användarnamn<br><input name="admin_username" required></label></p>
+                <p><label>Lösenord (minst 12 tecken)<br><input name="admin_password" type="password" minlength="12" required></label></p>
+                <p><button type="submit">Installera receptbanken</button></p>
             </form>
         <?php endif; ?>
     </main>
