@@ -1,5 +1,17 @@
-# Peters Receptbank v0.6.0
+# Peters Receptbank v0.7.0
 
-Sammanställd projektstruktur från Paket A-E.
+Receptbank byggd i PHP.
 
-OBS: Detta är en sammanslagning av de paket vi byggt hittills. Funktionaliteten är fortfarande under utveckling och flera klasser innehåller ännu inte full implementation.
+## Lokal konfiguration
+
+Databasuppgifter ska aldrig läggas i Git. Kopiera `config/database.local.php.example` till `config/database.local.php` och fyll i dina lokala uppgifter, eller ange motsvarande miljövariabler:
+
+- `DB_CONNECTION`
+- `DB_HOST`
+- `DB_PORT`
+- `DB_DATABASE`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `DB_CHARSET`
+
+Projektet kräver PHP 7.2 eller senare med PDO och PDO MySQL.

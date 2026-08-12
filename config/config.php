@@ -4,8 +4,9 @@ declare(strict_types=1);
 /*
  * Application configuration.
  *
- * Deployments may override the defaults with environment variables. Database
- * credentials are deliberately not stored in source control.
+ * Deployments may override the defaults with environment variables. A local
+ * config/database.local.php file may override database settings and is never
+ * committed to source control.
  */
 $env = static function (string $name, $default = null) {
     $value = getenv($name);
@@ -20,6 +21,27 @@ if (!in_array($environment, ['development', 'testing', 'production'], true)) {
 
 $debug = filter_var($env('APP_DEBUG', $environment === 'development' ? '1' : '0'), FILTER_VALIDATE_BOOLEAN);
 
+$database = [
+    'driver' => (string) $env('DB_CONNECTION', 'mysql'),
+    'host' => (string) $env('DB_HOST', '127.0.0.1'),
+    'port' => (int) $env('DB_PORT', '3306'),
+    'database' => (string) $env('DB_DATABASE', 'peters_receptbank'),
+    'username' => (string) $env('DB_USERNAME', 'root'),
+    'password' => (string) $env('DB_PASSWORD', ''),
+    'charset' => (string) $env('DB_CHARSET', 'utf8mb4'),
+];
+
+$localDatabaseConfig = __DIR__ . '/database.local.php';
+if (is_file($localDatabaseConfig)) {
+    $localOverrides = require $localDatabaseConfig;
+
+    if (!is_array($localOverrides)) {
+        throw new RuntimeException('config/database.local.php must return an array.');
+    }
+
+    $database = array_replace($database, $localOverrides);
+}
+
 $config = [
     'app' => [
         'name' => (string) $env('APP_NAME', 'Peters Receptbank'),
@@ -28,15 +50,7 @@ $config = [
         'debug' => $debug,
         'timezone' => (string) $env('APP_TIMEZONE', 'Europe/Stockholm'),
     ],
-    'database' => [
-        'driver' => (string) $env('DB_CONNECTION', 'mysql'),
-        'host' => (string) $env('DB_HOST', '127.0.0.1'),
-        'port' => (int) $env('DB_PORT', '3306'),
-        'database' => (string) $env('DB_DATABASE', 'peters_receptbank'),
-        'username' => (string) $env('DB_USERNAME', 'root'),
-        'password' => (string) $env('DB_PASSWORD', ''),
-        'charset' => (string) $env('DB_CHARSET', 'utf8mb4'),
-    ],
+    'database' => $database,
 ];
 
 defined('BASE_PATH') || define('BASE_PATH', dirname(__DIR__));
