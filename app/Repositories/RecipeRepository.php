@@ -65,7 +65,8 @@ final class RecipeRepository
         $ingredients = $this->connection->prepare(
             'SELECT ingredient_name, amount, unit_id, units.short_name AS unit
              FROM recipe_ingredients LEFT JOIN units ON units.id = recipe_ingredients.unit_id
-             WHERE recipe_id = :recipe_id ORDER BY sort_order, id'
+             WHERE recipe_ingredients.recipe_id = :recipe_id
+             ORDER BY recipe_ingredients.sort_order, recipe_ingredients.id'
         );
         $ingredients->execute(['recipe_id' => $id]);
         $recipe['ingredients'] = $ingredients->fetchAll();
