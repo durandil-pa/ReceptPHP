@@ -504,17 +504,17 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
 </head>
 <body>
 <main>
-    <h1><?= $escape(APP_NAME) ?></h1>
+    <h1><span class="site-icon" aria-hidden="true">🍲</span><?= $escape(APP_NAME) ?></h1>
     <?php if ($page !== 'login'): ?>
-        <nav>
-            <a href="<?= $escape($homeUrl) ?>">Startsida</a>
-            <a href="<?= $escape($url('recipes')) ?>">Recept</a>
-            <a href="<?= $escape($url('recipes', ['favorites' => 1])) ?>">Favoriter</a>
-            <a href="<?= $escape($url('categories')) ?>">Kategorier</a>
-            <a href="<?= $escape($url('password')) ?>">Byt lösenord</a>
-            <?php if ($isAdmin): ?><a href="<?= $escape($url('users')) ?>">Användare</a><?php endif; ?>
-            <a href="<?= $escape($url('recipe-create')) ?>">Nytt recept</a>
-            <a href="<?= $escape($url('recipe-import')) ?>">Importera recept</a>
+        <nav aria-label="Huvudmeny">
+            <a href="<?= $escape($homeUrl) ?>"><span aria-hidden="true">🏠</span> Startsida</a>
+            <a href="<?= $escape($url('recipes')) ?>"><span aria-hidden="true">🍽️</span> Recept</a>
+            <a href="<?= $escape($url('recipes', ['favorites' => 1])) ?>"><span aria-hidden="true">★</span> Favoriter</a>
+            <a href="<?= $escape($url('categories')) ?>"><span aria-hidden="true">🗂️</span> Kategorier</a>
+            <a href="<?= $escape($url('password')) ?>"><span aria-hidden="true">🔐</span> Byt lösenord</a>
+            <?php if ($isAdmin): ?><a href="<?= $escape($url('users')) ?>"><span aria-hidden="true">👥</span> Användare</a><?php endif; ?>
+            <a href="<?= $escape($url('recipe-create')) ?>"><span aria-hidden="true">➕</span> Nytt recept</a>
+            <a href="<?= $escape($url('recipe-import')) ?>"><span aria-hidden="true">📥</span> Importera recept</a>
         </nav>
     <?php endif; ?>
     <?php if ($flash !== null): ?><p><?= $escape($flash) ?></p><?php endif; ?>
