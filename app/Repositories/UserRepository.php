@@ -49,6 +49,38 @@ final class UserRepository
         ]);
     }
 
+
+    public function changeOwnPassword(int $userId, string $currentPassword, string $newPassword): void
+    {
+        if (strlen($newPassword) < 12) {
+            throw new RuntimeException('Det nya lösenordet måste ha minst 12 tecken.');
+        }
+
+        $statement = $this->connection->prepare(
+            'SELECT password_hash FROM users WHERE id = :id LIMIT 1'
+        );
+        $statement->execute(['id' => $userId]);
+        $passwordHash = $statement->fetchColumn();
+
+        if ($passwordHash === false) {
+            throw new RuntimeException('Användaren kunde inte hittas.');
+        }
+        if (!password_verify($currentPassword, (string) $passwordHash)) {
+            throw new RuntimeException('Nuvarande lösenord är fel.');
+        }
+        if (password_verify($newPassword, (string) $passwordHash)) {
+            throw new RuntimeException('Välj ett nytt lösenord som skiljer sig från det nuvarande.');
+        }
+
+        $update = $this->connection->prepare(
+            'UPDATE users SET password_hash = :password_hash WHERE id = :id'
+        );
+        $update->execute([
+            'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+            'id' => $userId,
+        ]);
+    }
+
     public function changeRole(int $currentUserId, int $userId, string $role): void
     {
         if (!in_array($role, ['admin', 'user'], true)) {
