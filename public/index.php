@@ -120,6 +120,11 @@ $readRecipeForm = static function () use (&$formData, &$formIngredients, &$error
     $formIngredients = [];
     $ingredients = [];
 
+    if (count($rawNames) > 100 || count($rawAmounts) > 100 || count($rawUnits) > 100) {
+        $error = 'Ett recept kan ha högst 100 ingredienser.';
+        return [];
+    }
+
     foreach ($rawNames as $index => $rawName) {
         $name = trim((string) $rawName);
         $amount = str_replace(',', '.', trim((string) ($rawAmounts[$index] ?? '')));
@@ -376,13 +381,29 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <p><label>Tillagningstid i minuter<br><input name="cook_time" type="number" min="0" value="<?= $escape($formData['cook_time']) ?>"></label></p>
             <p><label>Receptbild (JPG, PNG eller WebP, högst 5 MB)<br><input name="image" type="file" accept="image/jpeg,image/png,image/webp"></label></p>
             <h3>Ingredienser</h3>
-            <?php foreach ($formIngredients as $ingredient): ?><p>
-                <input name="amount[]" inputmode="decimal" placeholder="Mängd" value="<?= $escape($ingredient['amount']) ?>">
-                <select name="unit_id[]"><option value="0">Enhet</option>
-                    <?php foreach ($unitList as $unit): ?><option value="<?= $escape($unit['id']) ?>"<?= (int) $unit['id'] === (int) $ingredient['unit_id'] ? ' selected' : '' ?>><?= $escape($unit['short_name']) ?></option><?php endforeach; ?>
-                </select>
-                <input name="ingredient_name[]" maxlength="255" placeholder="Ingrediens" value="<?= $escape($ingredient['name']) ?>">
-            </p><?php endforeach; ?>
+            <div id="ingredient-list" class="ingredient-list">
+                <?php foreach ($formIngredients as $ingredient): ?>
+                    <div class="ingredient-row">
+                        <input name="amount[]" inputmode="decimal" placeholder="Mängd" value="<?= $escape($ingredient['amount']) ?>">
+                        <select name="unit_id[]"><option value="0">Enhet</option>
+                            <?php foreach ($unitList as $unit): ?><option value="<?= $escape($unit['id']) ?>"<?= (int) $unit['id'] === (int) $ingredient['unit_id'] ? ' selected' : '' ?>><?= $escape($unit['short_name']) ?></option><?php endforeach; ?>
+                        </select>
+                        <input name="ingredient_name[]" maxlength="255" placeholder="Ingrediens" value="<?= $escape($ingredient['name']) ?>">
+                        <button type="button" class="ingredient-remove" data-remove-ingredient>Ta bort</button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+            <template id="ingredient-row-template">
+                <div class="ingredient-row">
+                    <input name="amount[]" inputmode="decimal" placeholder="Mängd">
+                    <select name="unit_id[]"><option value="0">Enhet</option>
+                        <?php foreach ($unitList as $unit): ?><option value="<?= $escape($unit['id']) ?>"><?= $escape($unit['short_name']) ?></option><?php endforeach; ?>
+                    </select>
+                    <input name="ingredient_name[]" maxlength="255" placeholder="Ingrediens">
+                    <button type="button" class="ingredient-remove" data-remove-ingredient>Ta bort</button>
+                </div>
+            </template>
+            <p><button type="button" id="add-ingredient">Lägg till ingrediens</button></p>
             <p><label>Tillagningsbeskrivning<br><textarea name="instructions" rows="12" required><?= $escape($formData['instructions']) ?></textarea></label></p>
             <p><button type="submit"><?= $page === 'recipe-edit' ? 'Spara ändringar' : 'Spara recept' ?></button></p>
         </form>
@@ -411,5 +432,8 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         </form>
     <?php endif; ?>
 </main>
+<?php if ($page === 'recipe-create' || $page === 'recipe-edit'): ?>
+<script src="<?= $escape($basePath . '/js/ingredients.js') ?>" defer></script>
+<?php endif; ?>
 </body>
 </html>

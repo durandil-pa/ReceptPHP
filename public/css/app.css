@@ -150,3 +150,41 @@ li form button {
     background: var(--danger);
     border-color: var(--danger);
 }
+
+
+.ingredient-list {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0;
+}
+
+.ingredient-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 120px) minmax(110px, 140px) minmax(180px, 1fr) auto;
+    gap: 8px;
+    align-items: end;
+}
+
+.ingredient-row input,
+.ingredient-row select,
+.ingredient-row button {
+    width: 100%;
+    min-width: 0;
+}
+
+.ingredient-remove {
+    background: #6c7770;
+    border-color: #6c7770;
+    white-space: nowrap;
+}
+
+.ingredient-remove:hover,
+.ingredient-remove:focus {
+    background: #4e5852;
+}
+
+@media (max-width: 640px) {
+    .ingredient-row {
+        grid-template-columns: 1fr;
+    }
+}
