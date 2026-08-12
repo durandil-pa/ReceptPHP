@@ -21,35 +21,24 @@ final class RecipeRepository
      */
     public function all(): array
     {
-        $statement = $this->connection->query(
-            'SELECT recipes.id, recipes.title, recipes.description, recipes.servings,
-                    recipes.cook_time, recipes.created_at, categories.name AS category_name
+        return $this->connection->query(
+            'SELECT recipes.id, recipes.title, recipes.created_at, categories.name AS category_name
              FROM recipes
              LEFT JOIN categories ON categories.id = recipes.category_id
              ORDER BY recipes.created_at DESC, recipes.id DESC'
-        );
-
-        return $statement->fetchAll();
+        )->fetchAll();
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
+    /** @return array<int, array<string, mixed>> */
     public function categories(): array
     {
-        return $this->connection
-            ->query('SELECT id, name FROM categories ORDER BY name')
-            ->fetchAll();
+        return $this->connection->query('SELECT id, name FROM categories ORDER BY name')->fetchAll();
     }
 
-    /**
-     * @return array<int, array<string, mixed>>
-     */
+    /** @return array<int, array<string, mixed>> */
     public function units(): array
     {
-        return $this->connection
-            ->query('SELECT id, name, short_name FROM units ORDER BY id')
-            ->fetchAll();
+        return $this->connection->query('SELECT id, name, short_name FROM units ORDER BY id')->fetchAll();
     }
 
     /**
@@ -58,9 +47,9 @@ final class RecipeRepository
     public function find(int $id): ?array
     {
         $statement = $this->connection->prepare(
-            'SELECT recipes.id, recipes.title, recipes.description, recipes.servings,
-                    recipes.cook_time, recipes.instructions, recipes.created_at,
-                    recipes.updated_at, categories.name AS category_name
+            'SELECT recipes.id, recipes.category_id, recipes.title, recipes.description,
+                    recipes.servings, recipes.cook_time, recipes.instructions,
+                    recipes.created_at, recipes.updated_at, categories.name AS category_name
              FROM recipes
              LEFT JOIN categories ON categories.id = recipes.category_id
              WHERE recipes.id = :id
@@ -74,7 +63,7 @@ final class RecipeRepository
         }
 
         $ingredients = $this->connection->prepare(
-            'SELECT ingredient_name, amount, units.short_name AS unit
+            'SELECT ingredient_name, amount, unit_id, units.short_name AS unit
              FROM recipe_ingredients
              LEFT JOIN units ON units.id = recipe_ingredients.unit_id
              WHERE recipe_id = :recipe_id
@@ -98,40 +87,84 @@ final class RecipeRepository
                  (category_id, created_by, title, description, servings, cook_time, instructions)
                  VALUES (:category_id, :created_by, :title, :description, :servings, :cook_time, :instructions)'
             );
-            $statement->execute([
-                'category_id' => $recipe['category_id'] ?: null,
-                'created_by' => $userId,
-                'title' => $recipe['title'],
-                'description' => $recipe['description'] === '' ? null : $recipe['description'],
-                'servings' => $recipe['servings'] ?: null,
-                'cook_time' => $recipe['cook_time'] ?: null,
-                'instructions' => $recipe['instructions'],
-            ]);
+            $statement->execute($this->recipeParameters($recipe, ['created_by' => $userId]));
 
             $recipeId = (int) $this->connection->lastInsertId();
-            $ingredientStatement = $this->connection->prepare(
-                'INSERT INTO recipe_ingredients
-                 (recipe_id, ingredient_name, amount, unit_id, sort_order)
-                 VALUES (:recipe_id, :ingredient_name, :amount, :unit_id, :sort_order)'
-            );
-
-            foreach ($ingredients as $position => $ingredient) {
-                $ingredientStatement->execute([
-                    'recipe_id' => $recipeId,
-                    'ingredient_name' => $ingredient['name'],
-                    'amount' => $ingredient['amount'],
-                    'unit_id' => $ingredient['unit_id'],
-                    'sort_order' => $position,
-                ]);
-            }
+            $this->replaceIngredients($recipeId, $ingredients);
 
             return $recipeId;
         });
     }
 
     /**
-     * @return mixed
+     * @param array<string, mixed> $recipe
+     * @param array<int, array<string, mixed>> $ingredients
      */
+    public function update(int $recipeId, array $recipe, array $ingredients): void
+    {
+        $this->databaseTransaction(function () use ($recipeId, $recipe, $ingredients): void {
+            $statement = $this->connection->prepare(
+                'UPDATE recipes
+                 SET category_id = :category_id, title = :title, description = :description,
+                     servings = :servings, cook_time = :cook_time, instructions = :instructions
+                 WHERE id = :id'
+            );
+            $statement->execute($this->recipeParameters($recipe, ['id' => $recipeId]));
+            $this->replaceIngredients($recipeId, $ingredients);
+        });
+    }
+
+    public function delete(int $recipeId): bool
+    {
+        $statement = $this->connection->prepare('DELETE FROM recipes WHERE id = :id');
+        $statement->execute(['id' => $recipeId]);
+
+        return $statement->rowCount() === 1;
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $ingredients
+     */
+    private function replaceIngredients(int $recipeId, array $ingredients): void
+    {
+        $delete = $this->connection->prepare('DELETE FROM recipe_ingredients WHERE recipe_id = :recipe_id');
+        $delete->execute(['recipe_id' => $recipeId]);
+
+        $insert = $this->connection->prepare(
+            'INSERT INTO recipe_ingredients
+             (recipe_id, ingredient_name, amount, unit_id, sort_order)
+             VALUES (:recipe_id, :ingredient_name, :amount, :unit_id, :sort_order)'
+        );
+
+        foreach ($ingredients as $position => $ingredient) {
+            $insert->execute([
+                'recipe_id' => $recipeId,
+                'ingredient_name' => $ingredient['name'],
+                'amount' => $ingredient['amount'],
+                'unit_id' => $ingredient['unit_id'],
+                'sort_order' => $position,
+            ]);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $recipe
+     * @param array<string, mixed> $extra
+     * @return array<string, mixed>
+     */
+    private function recipeParameters(array $recipe, array $extra = []): array
+    {
+        return array_merge([
+            'category_id' => $recipe['category_id'] ?: null,
+            'title' => $recipe['title'],
+            'description' => $recipe['description'] === '' ? null : $recipe['description'],
+            'servings' => $recipe['servings'] ?: null,
+            'cook_time' => $recipe['cook_time'] ?: null,
+            'instructions' => $recipe['instructions'],
+        ], $extra);
+    }
+
+    /** @return mixed */
     private function databaseTransaction(callable $callback)
     {
         $this->connection->beginTransaction();
@@ -139,13 +172,11 @@ final class RecipeRepository
         try {
             $result = $callback();
             $this->connection->commit();
-
             return $result;
         } catch (\Throwable $exception) {
             if ($this->connection->inTransaction()) {
                 $this->connection->rollBack();
             }
-
             throw $exception;
         }
     }
