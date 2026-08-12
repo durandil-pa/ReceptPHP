@@ -310,3 +310,63 @@ article form .favorite-button.is-favorite:focus {
     background: #b8641f;
     border-color: #b8641f;
 }
+
+
+.print-button {
+    margin: 0;
+}
+
+@media print {
+    @page {
+        margin: 16mm;
+    }
+
+    body {
+        color: #000;
+        background: #fff;
+        font-size: 11pt;
+    }
+
+    main {
+        width: auto;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+    }
+
+    nav,
+    .recipe-detail-actions,
+    article > form,
+    main > form,
+    main > p {
+        display: none !important;
+    }
+
+    article {
+        padding: 0;
+        border: 0;
+    }
+
+    article img {
+        max-width: 100% !important;
+        max-height: 110mm;
+        box-shadow: none;
+    }
+
+    h1 {
+        font-size: 20pt;
+    }
+
+    h2 {
+        font-size: 17pt;
+        margin-top: 0;
+    }
+
+    h3 {
+        break-after: avoid;
+    }
+
+    ul {
+        break-inside: avoid;
+    }
+}
