@@ -55,6 +55,19 @@ CREATE TABLE IF NOT EXISTS recipes (
         FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
 
+
+CREATE TABLE IF NOT EXISTS recipe_favorites (
+    user_id INT UNSIGNED NOT NULL,
+    recipe_id INT UNSIGNED NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, recipe_id),
+    KEY recipe_favorites_recipe_id_index (recipe_id),
+    CONSTRAINT recipe_favorites_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CONSTRAINT recipe_favorites_recipe_id_foreign
+        FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_swedish_ci;
+
 CREATE TABLE IF NOT EXISTS recipe_ingredients (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     recipe_id INT UNSIGNED NOT NULL,

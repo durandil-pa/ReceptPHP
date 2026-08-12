@@ -5,6 +5,7 @@ use App\Auth\Authenticator;
 use App\Database\Database;
 use App\Repositories\RecipeRepository;
 use App\Repositories\CategoryRepository;
+use App\Repositories\FavoriteRepository;
 use App\Security\Csrf;
 use App\Services\RecipeImageUploader;
 
@@ -26,6 +27,7 @@ try {
     $auth = new Authenticator($database);
     $recipes = new RecipeRepository($database);
     $categoryRepository = new CategoryRepository($database);
+    $favorites = new FavoriteRepository($database);
     $images = new RecipeImageUploader();
 } catch (Throwable $exception) {
     error_log('Recipe bank startup failed: ' . $exception->getMessage());
@@ -83,6 +85,29 @@ if ($method === 'POST' && $page === 'category-create') {
             $page = 'categories';
         }
     }
+}
+
+if ($method === 'POST' && $page === 'favorite-toggle') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        echo 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        exit;
+    }
+
+    $recipeId = (int) ($_POST['recipe_id'] ?? 0);
+    try {
+        $isFavorite = $favorites->toggle((int) $auth->user()['id'], $recipeId);
+        $_SESSION['flash'] = $isFavorite ? 'Receptet har lagts till bland favoriter.' : 'Receptet har tagits bort från favoriter.';
+    } catch (RuntimeException $exception) {
+        $_SESSION['flash'] = 'Receptet kunde inte hittas.';
+    }
+
+    if (($_POST['return_page'] ?? '') === 'recipe-show') {
+        header('Location: ' . $url('recipe-show', ['id' => $recipeId]));
+    } else {
+        header('Location: ' . $url('recipes'));
+    }
+    exit;
 }
 
 if ($method === 'POST' && $page === 'category-delete') {
@@ -234,6 +259,8 @@ if ($page === 'recipe-show') {
         http_response_code(404);
         $page = 'recipes';
         $error = 'Receptet kunde inte hittas.';
+    } else {
+        $recipe['is_favorite'] = $favorites->exists((int) $user['id'], (int) $recipe['id']);
     }
 }
 
@@ -271,6 +298,7 @@ if ($page === 'categories') {
 if ($page === 'recipes') {
     $searchQuery = trim((string) ($_GET['q'] ?? ''));
     $selectedCategoryId = (int) ($_GET['category'] ?? 0);
+    $favoritesOnly = isset($_GET['favorites']) && $_GET['favorites'] === '1';
 
     if ($selectedCategoryId !== 0 && !in_array($selectedCategoryId, $categoryIds, true)) {
         $selectedCategoryId = 0;
@@ -280,7 +308,7 @@ if ($page === 'recipes') {
         $searchQuery = substr($searchQuery, 0, 100);
     }
 
-    $recipeList = $recipes->search($searchQuery, $selectedCategoryId);
+    $recipeList = $recipes->search($searchQuery, $selectedCategoryId, (int) $user['id'], $favoritesOnly);
 }
 
 $titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier'];
@@ -301,6 +329,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <nav>
             <a href="<?= $escape($homeUrl) ?>">Startsida</a>
             <a href="<?= $escape($url('recipes')) ?>">Recept</a>
+            <a href="<?= $escape($url('recipes', ['favorites' => 1])) ?>">Favoriter</a>
             <a href="<?= $escape($url('categories')) ?>">Kategorier</a>
             <a href="<?= $escape($url('recipe-create')) ?>">Nytt recept</a>
         </nav>
@@ -357,6 +386,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
                     <option value="<?= $escape($category['id']) ?>"<?= (int) $category['id'] === $selectedCategoryId ? ' selected' : '' ?>><?= $escape($category['name']) ?></option>
                 <?php endforeach; ?>
             </select></label></p>
+            <p><label class="checkbox-label"><input type="checkbox" name="favorites" value="1"<?= $favoritesOnly ? ' checked' : '' ?>> Endast favoriter</label></p>
             <p><button type="submit">Sök</button> <a href="<?= $escape($url('recipes')) ?>">Rensa</a></p>
         </form>
         <?php if ($recipeList === []): ?><p>Inga recept matchar sökningen.</p><?php else: ?>
@@ -373,7 +403,17 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
                         <div class="recipe-card-content">
                             <h3><a href="<?= $escape($url('recipe-show', ['id' => $listItem['id']])) ?>"><?= $escape($listItem['title']) ?></a></h3>
                             <?php if ($listItem['category_name'] !== null): ?><p><?= $escape($listItem['category_name']) ?></p><?php endif; ?>
-                            <p><a href="<?= $escape($url('recipe-edit', ['id' => $listItem['id']])) ?>">Redigera receptet</a></p>
+                            <div class="recipe-card-actions">
+                                <form method="post" action="<?= $escape($url('favorite-toggle')) ?>" class="favorite-form">
+                                    <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+                                    <input type="hidden" name="recipe_id" value="<?= $escape($listItem['id']) ?>">
+                                    <input type="hidden" name="return_page" value="recipes">
+                                    <button type="submit" class="favorite-button<?= $listItem['is_favorite'] ? ' is-favorite' : '' ?>" aria-label="<?= $listItem['is_favorite'] ? 'Ta bort från favoriter' : 'Lägg till som favorit' ?>">
+                                        <?= $listItem['is_favorite'] ? '★ Favorit' : '☆ Lägg till favorit' ?>
+                                    </button>
+                                </form>
+                                <a href="<?= $escape($url('recipe-edit', ['id' => $listItem['id']])) ?>">Redigera receptet</a>
+                            </div>
                         </div>
                     </article>
                 <?php endforeach; ?>
@@ -423,7 +463,17 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
     <?php elseif ($page === 'recipe-show'): ?>
         <article>
             <h2><?= $escape($recipe['title']) ?></h2>
-            <p><a href="<?= $escape($url('recipe-edit', ['id' => $recipe['id']])) ?>">Redigera receptet</a></p>
+            <div class="recipe-detail-actions">
+                <form method="post" action="<?= $escape($url('favorite-toggle')) ?>" class="favorite-form">
+                    <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+                    <input type="hidden" name="recipe_id" value="<?= $escape($recipe['id']) ?>">
+                    <input type="hidden" name="return_page" value="recipe-show">
+                    <button type="submit" class="favorite-button<?= $recipe['is_favorite'] ? ' is-favorite' : '' ?>">
+                        <?= $recipe['is_favorite'] ? '★ Ta bort från favoriter' : '☆ Lägg till som favorit' ?>
+                    </button>
+                </form>
+                <a href="<?= $escape($url('recipe-edit', ['id' => $recipe['id']])) ?>">Redigera receptet</a>
+            </div>
             <?php if ($recipe['image_path'] !== null): ?><p><img src="<?= $escape($basePath . '/'. $recipe['image_path']) ?>" alt="<?= $escape($recipe['title']) ?>" style="max-width: 500px; height: auto;"></p><?php endif; ?>
             <?php if ($recipe['category_name'] !== null): ?><p>Kategori: <?= $escape($recipe['category_name']) ?></p><?php endif; ?>
             <?php if ($recipe['description'] !== null): ?><p><?= nl2br($escape($recipe['description'])) ?></p><?php endif; ?>

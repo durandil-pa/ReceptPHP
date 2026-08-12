@@ -1,3 +1,6 @@
+v0.7.1
+- Lade till personliga favoriter med favoritfilter.
+
 v0.7.0
 - Införde miljöstyrd konfiguration, säker bootstrap och PDO-databastjänst.
 - Lade till lokal, ej versionshanterad databasinställning.

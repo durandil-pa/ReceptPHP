@@ -17,11 +17,16 @@ final class RecipeRepository
     }
 
     /** @return array<int, array<string, mixed>> */
-    public function search(string $query = '', int $categoryId = 0): array
+    public function search(string $query = '', int $categoryId = 0, int $userId = 0, bool $favoritesOnly = false): array
     {
-        $sql = 'SELECT recipes.id, recipes.title, recipes.image_path, recipes.created_at, categories.name AS category_name
-                FROM recipes LEFT JOIN categories ON categories.id = recipes.category_id WHERE 1 = 1';
-        $parameters = [];
+        $sql = 'SELECT recipes.id, recipes.title, recipes.image_path, recipes.created_at, categories.name AS category_name,
+                       recipe_favorites.recipe_id IS NOT NULL AS is_favorite
+                FROM recipes
+                LEFT JOIN categories ON categories.id = recipes.category_id
+                LEFT JOIN recipe_favorites ON recipe_favorites.recipe_id = recipes.id
+                    AND recipe_favorites.user_id = :favorite_user_id
+                WHERE 1 = 1';
+        $parameters = ['favorite_user_id' => $userId];
         if ($query !== '') {
             $sql .= ' AND (recipes.title LIKE :query OR recipes.description LIKE :query)';
             $parameters['query'] = '%' . $query . '%';
@@ -29,6 +34,9 @@ final class RecipeRepository
         if ($categoryId > 0) {
             $sql .= ' AND recipes.category_id = :category_id';
             $parameters['category_id'] = $categoryId;
+        }
+        if ($favoritesOnly) {
+            $sql .= ' AND recipe_favorites.recipe_id IS NOT NULL';
         }
         $statement = $this->connection->prepare($sql . ' ORDER BY recipes.created_at DESC, recipes.id DESC');
         $statement->execute($parameters);
