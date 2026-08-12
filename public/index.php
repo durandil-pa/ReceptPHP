@@ -379,7 +379,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
         <p><a href="<?= $escape($url('recipe-create')) ?>">Skapa nytt recept</a></p>
         <form method="get" action="<?= $escape($homeUrl) ?>">
             <input type="hidden" name="page" value="recipes">
-            <p><label>Sök recept<br><input name="q" maxlength="100" value="<?= $escape($searchQuery) ?>"></label></p>
+            <p><label>Sök recept eller ingrediens<br><input name="q" maxlength="100" value="<?= $escape($searchQuery) ?>" placeholder="Till exempel vitlök"></label></p>
             <p><label>Kategori<br><select name="category">
                 <option value="0">Alla kategorier</option>
                 <?php foreach ($categoryList as $category): ?>
