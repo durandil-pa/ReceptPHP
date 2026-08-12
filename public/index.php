@@ -7,6 +7,7 @@ use App\Repositories\RecipeRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\FavoriteRepository;
 use App\Repositories\RecipeNoteRepository;
+use App\Repositories\UserRepository;
 use App\Security\Csrf;
 use App\Services\RecipeImageUploader;
 
@@ -30,6 +31,7 @@ try {
     $categoryRepository = new CategoryRepository($database);
     $favorites = new FavoriteRepository($database);
     $notes = new RecipeNoteRepository($database);
+    $users = new UserRepository($database);
     $images = new RecipeImageUploader();
 } catch (Throwable $exception) {
     error_log('Recipe bank startup failed: ' . $exception->getMessage());
@@ -151,6 +153,60 @@ if ($method === 'POST' && $page === 'category-delete') {
 }
 
 $user = $auth->user();
+$isAdmin = $user !== null && ($user['role'] ?? '') === 'admin';
+$adminPages = ['users', 'user-create', 'user-role-change'];
+
+if (!$isAdmin && in_array($page, $adminPages, true)) {
+    http_response_code(403);
+    $error = 'Du har inte behörighet att hantera användare.';
+    $page = 'dashboard';
+}
+
+if ($isAdmin && $method === 'POST' && $page === 'user-create') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        $page = 'users';
+    } else {
+        try {
+            $users->create(
+                (string) ($_POST['name'] ?? ''),
+                (string) ($_POST['username'] ?? ''),
+                (string) ($_POST['password'] ?? ''),
+                (string) ($_POST['role'] ?? 'user')
+            );
+            $_SESSION['flash'] = 'Användaren har skapats.';
+            header('Location: ' . $url('users'));
+            exit;
+        } catch (RuntimeException $exception) {
+            $error = $exception->getMessage();
+            $page = 'users';
+        }
+    }
+}
+
+if ($isAdmin && $method === 'POST' && $page === 'user-role-change') {
+    if (!Csrf::isValid($_POST['_token'] ?? null)) {
+        http_response_code(419);
+        $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
+        $page = 'users';
+    } else {
+        try {
+            $users->changeRole(
+                (int) $user['id'],
+                (int) ($_POST['id'] ?? 0),
+                (string) ($_POST['role'] ?? '')
+            );
+            $_SESSION['flash'] = 'Behörigheten har uppdaterats.';
+            header('Location: ' . $url('users'));
+            exit;
+        } catch (RuntimeException $exception) {
+            $error = $exception->getMessage();
+            $page = 'users';
+        }
+    }
+}
+
 $categoryList = $auth->check() ? $recipes->categories() : [];
 $unitList = $auth->check() ? $recipes->units() : [];
 $categoryIds = array_map('intval', array_column($categoryList, 'id'));
@@ -322,6 +378,10 @@ if ($page === 'categories') {
     $managedCategories = $categoryRepository->all();
 }
 
+if ($page === 'users' && $isAdmin) {
+    $managedUsers = $users->all();
+}
+
 if ($page === 'recipes') {
     $searchQuery = trim((string) ($_GET['q'] ?? ''));
     $selectedCategoryId = (int) ($_GET['category'] ?? 0);
@@ -338,7 +398,7 @@ if ($page === 'recipes') {
     $recipeList = $recipes->search($searchQuery, $selectedCategoryId, (int) $user['id'], $favoritesOnly);
 }
 
-$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier'];
+$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare'];
 $title = $titles[$page] ?? 'Sidan hittades inte';
 ?>
 <!doctype html>
@@ -358,6 +418,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <a href="<?= $escape($url('recipes')) ?>">Recept</a>
             <a href="<?= $escape($url('recipes', ['favorites' => 1])) ?>">Favoriter</a>
             <a href="<?= $escape($url('categories')) ?>">Kategorier</a>
+            <?php if ($isAdmin): ?><a href="<?= $escape($url('users')) ?>">Användare</a><?php endif; ?>
             <a href="<?= $escape($url('recipe-create')) ?>">Nytt recept</a>
         </nav>
     <?php endif; ?>
@@ -400,6 +461,42 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
+    <?php elseif ($page === 'users' && $isAdmin): ?>
+        <h2>Användare</h2>
+        <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
+        <form method="post" action="<?= $escape($url('user-create')) ?>">
+            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+            <h3>Skapa användare</h3>
+            <p><label>Namn<br><input name="name" maxlength="100" required></label></p>
+            <p><label>Användarnamn<br><input name="username" pattern="[A-Za-z0-9_.-]{3,100}" maxlength="100" required></label></p>
+            <p><label>Lösenord (minst 12 tecken)<br><input name="password" type="password" minlength="12" required></label></p>
+            <p><label>Behörighet<br><select name="role"><option value="user">Vanlig användare</option><option value="admin">Administratör</option></select></label></p>
+            <p><button type="submit">Skapa användare</button></p>
+        </form>
+        <h3>Befintliga användare</h3>
+        <div class="user-list">
+            <?php foreach ($managedUsers as $managedUser): ?>
+                <div class="user-row">
+                    <div>
+                        <strong><?= $escape($managedUser['name']) ?></strong><br>
+                        <span><?= $escape($managedUser['username']) ?></span>
+                    </div>
+                    <?php if ((int) $managedUser['id'] === (int) $user['id']): ?>
+                        <span class="user-role"><?= $escape($managedUser['role'] === 'admin' ? 'Administratör (du)' : 'Vanlig användare') ?></span>
+                    <?php else: ?>
+                        <form method="post" action="<?= $escape($url('user-role-change')) ?>" class="user-role-form">
+                            <input type="hidden" name="_token" value="<?= $escape(Csrf::token()) ?>">
+                            <input type="hidden" name="id" value="<?= $escape($managedUser['id']) ?>">
+                            <select name="role">
+                                <option value="user"<?= $managedUser['role'] === 'user' ? ' selected' : '' ?>>Vanlig användare</option>
+                                <option value="admin"<?= $managedUser['role'] === 'admin' ? ' selected' : '' ?>>Administratör</option>
+                            </select>
+                            <button type="submit">Spara</button>
+                        </form>
+                    <?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
     <?php elseif ($page === 'recipes'): ?>
         <h2>Recept</h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
