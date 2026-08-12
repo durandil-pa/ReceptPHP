@@ -2,16 +2,15 @@
 
 Receptbank byggd i PHP.
 
+## Installation
+
+1. Placera projektet på en server med PHP 7.2+ och PDO MySQL.
+2. Besök `install/index.php`.
+3. Ange databasuppgifterna. Installationen skapar databasen, tabellerna och den lokala filen `config/database.local.php`.
+4. Ta bort eller begränsa åtkomsten till katalogen `install/` när installationen är klar.
+
 ## Lokal konfiguration
 
-Databasuppgifter ska aldrig läggas i Git. Kopiera `config/database.local.php.example` till `config/database.local.php` och fyll i dina lokala uppgifter, eller ange motsvarande miljövariabler:
+Databasuppgifter ska aldrig läggas i Git. Installationsprogrammet skapar `config/database.local.php`. Om du vill konfigurera manuellt, kopiera `config/database.local.php.example` till `config/database.local.php` och fyll i dina lokala uppgifter.
 
-- `DB_CONNECTION`
-- `DB_HOST`
-- `DB_PORT`
-- `DB_DATABASE`
-- `DB_USERNAME`
-- `DB_PASSWORD`
-- `DB_CHARSET`
-
-Projektet kräver PHP 7.2 eller senare med PDO och PDO MySQL.
+Du kan också använda miljövariablerna `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` och `DB_CHARSET`.
