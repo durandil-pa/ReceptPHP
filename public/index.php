@@ -5,6 +5,7 @@ use App\Auth\Authenticator;
 use App\Database\Database;
 use App\Repositories\RecipeRepository;
 use App\Security\Csrf;
+use App\Services\RecipeImageUploader;
 
 $config = require __DIR__ . '/../bootstrap/app.php';
 
