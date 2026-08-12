@@ -7,6 +7,13 @@ use App\Security\Csrf;
 
 $config = require __DIR__ . '/../bootstrap/app.php';
 
+$scriptName = isset($_SERVER['SCRIPT_NAME']) ? (string) $_SERVER['SCRIPT_NAME'] : '/index.php';
+$basePath = rtrim(str_replace('\\', '/', dirname($scriptName)), '/');
+$basePath = $basePath === '.' ? '' : $basePath;
+$homeUrl = ($basePath === '' ? '' : $basePath) . '/';
+$loginUrl = $homeUrl . '?page=login';
+$logoutUrl = $homeUrl . '?page=logout';
+
 try {
     $auth = new Authenticator(Database::fromConfig($config));
 } catch (Throwable $exception) {
@@ -24,7 +31,7 @@ if ($method === 'POST' && $page === 'login') {
         http_response_code(419);
         $error = 'Formuläret har gått ut. Ladda om sidan och försök igen.';
     } elseif ($auth->attempt(trim((string) ($_POST['username'] ?? '')), (string) ($_POST['password'] ?? ''))) {
-        header('Location: /');
+        header('Location: ' . $homeUrl);
         exit;
     } else {
         $error = 'Fel användarnamn eller lösenord.';
@@ -39,7 +46,7 @@ if ($method === 'POST' && $page === 'logout') {
     }
 
     $auth->logout();
-    header('Location: /?page=login');
+    header('Location: ' . $loginUrl);
     exit;
 }
 
@@ -66,7 +73,7 @@ $title = $page === 'login' ? 'Logga in' : 'Startsida';
             <?php if (isset($error)): ?>
                 <p><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p>
             <?php endif; ?>
-            <form method="post" action="/?page=login">
+            <form method="post" action="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="_token" value="<?= htmlspecialchars(Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
                 <p><label>Användarnamn<br><input name="username" autocomplete="username" required></label></p>
                 <p><label>Lösenord<br><input name="password" type="password" autocomplete="current-password" required></label></p>
@@ -75,7 +82,7 @@ $title = $page === 'login' ? 'Logga in' : 'Startsida';
         <?php else: ?>
             <p>Välkommen, <?= htmlspecialchars((string) $user['name'], ENT_QUOTES, 'UTF-8') ?>.</p>
             <p>Inloggningen fungerar. Receptmodulen byggs i nästa steg.</p>
-            <form method="post" action="/?page=logout">
+            <form method="post" action="<?= htmlspecialchars($logoutUrl, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="_token" value="<?= htmlspecialchars(Csrf::token(), ENT_QUOTES, 'UTF-8') ?>">
                 <button type="submit">Logga ut</button>
             </form>
