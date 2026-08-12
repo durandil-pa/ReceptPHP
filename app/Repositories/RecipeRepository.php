@@ -69,7 +69,7 @@ final class RecipeRepository
     public function find(int $id): ?array
     {
         $statement = $this->connection->prepare(
-            'SELECT recipes.id, recipes.category_id, recipes.title, recipes.description, recipes.image_path,
+            'SELECT recipes.id, recipes.category_id, recipes.title, recipes.description, recipes.image_path, recipes.source_url,
                     recipes.servings, recipes.cook_time, recipes.instructions, recipes.created_at,
                     recipes.updated_at, categories.name AS category_name
              FROM recipes LEFT JOIN categories ON categories.id = recipes.category_id
@@ -99,8 +99,8 @@ final class RecipeRepository
     {
         return $this->databaseTransaction(function () use ($recipe, $ingredients, $userId, $imagePath): int {
             $statement = $this->connection->prepare(
-                'INSERT INTO recipes (category_id, created_by, title, description, servings, cook_time, instructions, image_path)
-                 VALUES (:category_id, :created_by, :title, :description, :servings, :cook_time, :instructions, :image_path)'
+                'INSERT INTO recipes (category_id, created_by, title, description, servings, cook_time, instructions, image_path, source_url)
+                 VALUES (:category_id, :created_by, :title, :description, :servings, :cook_time, :instructions, :image_path, :source_url)'
             );
             $statement->execute($this->recipeParameters($recipe, ['created_by' => $userId, 'image_path' => $imagePath]));
             $recipeId = (int) $this->connection->lastInsertId();
@@ -117,7 +117,7 @@ final class RecipeRepository
     {
         $this->databaseTransaction(function () use ($recipeId, $recipe, $ingredients, $imagePath): void {
             $sql = 'UPDATE recipes SET category_id = :category_id, title = :title, description = :description,
-                    servings = :servings, cook_time = :cook_time, instructions = :instructions';
+                    servings = :servings, cook_time = :cook_time, instructions = :instructions, source_url = :source_url';
             $parameters = $this->recipeParameters($recipe, ['id' => $recipeId]);
             if ($imagePath !== null) {
                 $sql .= ', image_path = :image_path';
@@ -161,7 +161,7 @@ final class RecipeRepository
         return array_merge(['category_id' => $recipe['category_id'] ?: null, 'title' => $recipe['title'],
             'description' => $recipe['description'] === '' ? null : $recipe['description'],
             'servings' => $recipe['servings'] ?: null, 'cook_time' => $recipe['cook_time'] ?: null,
-            'instructions' => $recipe['instructions']], $extra);
+            'instructions' => $recipe['instructions'], 'source_url' => $recipe['source_url'] === '' ? null : $recipe['source_url']], $extra);
     }
 
     /** @return mixed */
