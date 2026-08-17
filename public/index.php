@@ -11,6 +11,7 @@ use App\Repositories\UserRepository;
 use App\Security\Csrf;
 use App\Services\RecipeImageUploader;
 use App\Services\RecipeImporter;
+use App\Services\MeasurementConverter;
 
 $config = require __DIR__ . '/../bootstrap/app.php';
 
@@ -47,6 +48,25 @@ $page = isset($_GET['page']) ? (string) $_GET['page'] : 'dashboard';
 $error = null;
 $formData = ['title' => '', 'description' => '', 'category_id' => 0, 'servings' => 4, 'cook_time' => '', 'instructions' => '', 'source_url' => ''];
 $formIngredients = array_fill(0, 3, ['amount' => '', 'unit_id' => 0, 'name' => '']);
+$measurementConverter = new MeasurementConverter();
+$conversionAmount = trim((string) ($_GET['amount'] ?? ''));
+$conversionUnit = (string) ($_GET['unit'] ?? 'cup');
+$conversionResult = null;
+$conversionError = null;
+
+if ($page === 'converter' && $conversionAmount !== '') {
+    $normalizedAmount = str_replace(',', '.', $conversionAmount);
+
+    if (!is_numeric($normalizedAmount)) {
+        $conversionError = 'Ange ett giltigt tal.';
+    } else {
+        try {
+            $conversionResult = $measurementConverter->convert((float) $normalizedAmount, $conversionUnit);
+        } catch (InvalidArgumentException $exception) {
+            $conversionError = $exception->getMessage();
+        }
+    }
+}
 
 if ($method === 'POST' && $page === 'login') {
     if (!Csrf::isValid($_POST['_token'] ?? null)) {
@@ -491,7 +511,7 @@ if ($page === 'recipes') {
     $recipeList = $recipes->search($searchQuery, $selectedCategoryId, (int) $user['id'], $favoritesOnly);
 }
 
-$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-import' => 'Importera recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord', 'register' => 'Registrera konto'];
+$titles = ['login' => 'Logga in', 'dashboard' => 'Startsida', 'recipes' => 'Recept', 'recipe-create' => 'Nytt recept', 'recipe-import' => 'Importera recept', 'recipe-show' => 'Recept', 'recipe-edit' => 'Redigera recept', 'categories' => 'Kategorier', 'users' => 'Användare', 'password' => 'Byt lösenord', 'register' => 'Registrera konto', 'converter' => 'Måttomvandlare'];
 $title = $titles[$page] ?? 'Sidan hittades inte';
 ?>
 <!doctype html>
@@ -515,6 +535,7 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
             <?php if ($isAdmin): ?><a href="<?= $escape($url('users')) ?>"><span aria-hidden="true">👥</span> Användare</a><?php endif; ?>
             <a href="<?= $escape($url('recipe-create')) ?>"><span aria-hidden="true">➕</span> Nytt recept</a>
             <a href="<?= $escape($url('recipe-import')) ?>"><span aria-hidden="true">📥</span> Importera recept</a>
+            <a href="<?= $escape($url('converter')) ?>"><span aria-hidden="true">⚖️</span> Måttomvandlare</a>
         </nav>
     <?php endif; ?>
     <?php if ($flash !== null): ?><p><?= $escape($flash) ?></p><?php endif; ?>
@@ -624,6 +645,24 @@ $title = $titles[$page] ?? 'Sidan hittades inte';
                 </div>
             <?php endforeach; ?>
         </div>
+    <?php elseif ($page === 'converter'): ?>
+        <h2>Måttomvandlare</h2>
+        <p>Omvandla amerikanska receptmått till svenska mått. Fluid ounce är volym medan ounce är vikt.</p>
+        <form method="get" action="<?= $escape($homeUrl) ?>">
+            <input type="hidden" name="page" value="converter">
+            <p><label>Mängd<br><input name="amount" inputmode="decimal" required value="<?= $escape($conversionAmount) ?>"></label></p>
+            <p><label>Amerikanskt mått<br><select name="unit">
+                <?php foreach ($measurementConverter->supportedUnits() as $unitKey => $unit): ?>
+                    <option value="<?= $escape($unitKey) ?>"<?= $conversionUnit === $unitKey ? ' selected' : '' ?>><?= $escape($unit['label']) ?></option>
+                <?php endforeach; ?>
+            </select></label></p>
+            <p><button type="submit">Omvandla</button></p>
+        </form>
+        <?php if ($conversionError !== null): ?>
+            <p><?= $escape($conversionError) ?></p>
+        <?php elseif ($conversionResult !== null): ?>
+            <p><strong>Resultat: <?= $escape(number_format($conversionResult['value'], 2, ',', ' ')) ?> <?= $escape($conversionResult['unit']) ?></strong></p>
+        <?php endif; ?>
     <?php elseif ($page === 'recipes'): ?>
         <h2>Recept</h2>
         <?php if ($error !== null): ?><p><?= $escape($error) ?></p><?php endif; ?>
