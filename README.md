@@ -16,3 +16,14 @@ Receptbank byggd i PHP.
 Databasuppgifter ska aldrig läggas i Git. Installationsprogrammet skapar `config/database.local.php`. Om du vill konfigurera manuellt, kopiera `config/database.local.php.example` till `config/database.local.php` och fyll i dina lokala uppgifter.
 
 Du kan också använda miljövariablerna `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` och `DB_CHARSET`.
+
+## Måttomvandling
+
+Den inloggade applikationen har en fristående måttomvandlare för amerikanska receptmått. Logiken finns i `App\Services\MeasurementConverter` och kan även användas av import- och visningsflöden:
+
+```php
+$result = $converter->convert(2, 'cups');
+// ['value' => 4.73176473, 'unit' => 'dl', 'category' => 'volume', ...]
+```
+
+Volymenheten `fl oz` och viktenheten `oz` är separata enheter. Omvandlaren stöder cup, fluid ounce, ounce (vikt), tablespoon/tbsp, teaspoon/tsp, pound/lb och Fahrenheit.
